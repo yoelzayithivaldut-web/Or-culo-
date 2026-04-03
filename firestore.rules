@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string
+    //   - plan: string (free, basic, premium)
+    //   - createdAt: timestamp
+    //
+    // Collection: books
+    // Document ID: {bookId}
+    // Fields:
+    //   - title: string (required)
+    //   - author: string
+    //   - genre: string
+    //   - synopsis: string
+    //   - content: string
+    //   - type: string (standard, children, ebook)
+    //   - cover_url: string
+    //   - back_cover_url: string
+    //   - back_cover_text: string
+    //   - status: string (writing, reviewing, finished, published)
+    //   - ownerId: string (required)
+    //   - createdAt: timestamp
+    //   - updatedAt: timestamp
+    //   - language: string
+    //
+    // Collection: clients
+    // Document ID: {clientId}
+    // Fields:
+    //   - name: string (required)
+    //   - email: string
+    //   - notes: string
+    //   - ownerId: string (required)
+    //   - createdAt: timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.ownerId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && 
+                      hasOnlyAllowedFields(['uid', 'email', 'displayName', 'plan', 'createdAt']) &&
+                      request.resource.data.uid == userId &&
+                      isValidEmail(request.resource.data.email);
+      allow update: if isOwner(userId) && 
+                      hasOnlyAllowedFields(['uid', 'email', 'displayName', 'plan', 'createdAt']) &&
+                      request.resource.data.uid == resource.data.uid &&
+                      request.resource.data.email == resource.data.email;
+    }
+
+    match /books/{bookId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && 
+                      request.resource.data.ownerId == request.auth.uid &&
+                      request.resource.data.title is string &&
+                      request.resource.data.title.size() > 0 &&
+                      request.resource.data.title.size() < 200 &&
+                      (!('type' in request.resource.data) || request.resource.data.type in ['standard', 'children', 'ebook']);
+      allow update: if isDocOwner() && 
+                      request.resource.data.ownerId == resource.data.ownerId &&
+                      (!('type' in request.resource.data) || request.resource.data.type in ['standard', 'children', 'ebook']);
+      allow delete: if isDocOwner();
+    }
+
+    match /clients/{clientId} {
+      allow read: if isDocOwner() || (isAuthenticated() && request.resource.data.ownerId == request.auth.uid);
+      allow create: if isAuthenticated() && 
+                      request.resource.data.ownerId == request.auth.uid &&
+                      request.resource.data.name is string &&
+                      request.resource.data.name.size() > 0;
+      allow update: if isDocOwner() && 
+                      request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isDocOwner();
+    }
+  }
+}
