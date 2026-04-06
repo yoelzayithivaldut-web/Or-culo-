@@ -15,5 +15,15 @@ dist/
 .env*
 !.env.example
 
+# scripts with secrets
+.git-credentials
+git-cred.txt
+deploy.ps1
+deploy.sh
+deploy.bat
+push.bat
+start-dev.bat
+check_perms.ps1
+
 # testing
 coverage/

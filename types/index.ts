@@ -18,6 +18,11 @@ export interface Profile {
   role: UserRole;
   updated_at: string;
   created_at: string;
+  user_metadata?: {
+    full_name?: string;
+    onboarding_completed?: boolean;
+    avatar_url?: string;
+  };
 }
 
 export interface Book {

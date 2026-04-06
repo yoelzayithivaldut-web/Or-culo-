@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, beforeAll, afterAll } from 'vitest';
 
-// Mock Supabase
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {
@@ -24,7 +23,6 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 
-// Mock Next.js router
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -34,7 +32,6 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }));
 
-// Mock sonner
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -43,3 +40,15 @@ vi.mock('sonner', () => ({
     info: vi.fn(),
   },
 }));
+
+const originalError = console.error;
+beforeAll(() => {
+  console.error = (...args) => {
+    if (typeof args[0] === 'string' && args[0].includes('act(')) return;
+    originalError.call(console, ...args);
+  };
+});
+
+afterAll(() => {
+  console.error = originalError;
+});

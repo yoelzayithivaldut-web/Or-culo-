@@ -24,7 +24,8 @@ import {
   Crown,
   AlertTriangle,
   Baby,
-  Smartphone
+  Smartphone,
+  FileText
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,7 @@ export const Sidebar = ({ isOpen, toggle }: { isOpen: boolean; toggle: () => voi
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: BookIcon, label: 'Meus Livros', path: '/books' },
     { icon: PenTool, label: 'Editor Inteligente', path: '/editor' },
+    { icon: FileText, label: 'Editor de PDF', path: '/pdf-editor' },
     { icon: Baby, label: 'Livros Infantis', path: '/childrens-book-creator' },
     { icon: Smartphone, label: 'E-books Estratégicos', path: '/ebook-creator' },
     { icon: Languages, label: 'Tradução', path: '/translation' },

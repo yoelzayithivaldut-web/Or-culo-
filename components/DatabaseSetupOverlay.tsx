@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, Copy, Check, Database, ExternalLink, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/AuthProvider';
-import { supabase } from '@/services/supabaseService';
+import { supabase } from '@/lib/supabase';
 
 export const DatabaseSetupOverlay = () => {
   const [show, setShow] = useState(false);

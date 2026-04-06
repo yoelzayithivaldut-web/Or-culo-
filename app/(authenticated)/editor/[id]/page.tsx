@@ -128,7 +128,7 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
           status: 'writing',
           language: 'pt-BR',
           genre: 'Não Definido',
-          author: user.user_metadata?.full_name || 'Autor Desconhecido'
+          author: user?.display_name || user?.email?.split('@')[0] || 'Autor Desconhecido'
         });
         setLastSavedContent(content);
         setLastSavedTime(new Date());
@@ -463,6 +463,146 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
     toast.success('Manuscrito profissional exportado com sucesso!');
   };
 
+  const handleDownloadKdpPdf = () => {
+    const pageWidthMm = 152.4;
+    const pageHeightMm = 228.6;
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [pageWidthMm, pageHeightMm]
+    });
+
+    const title = book?.title || 'Obra Sem Título';
+    const author = book?.author || 'Autor Desconhecido';
+    
+    const marginInner = 22;
+    const marginOuter = 18;
+    const marginTop = 20;
+    const marginBottom = 20;
+    const lineHeight = 6;
+    const fontSizeBody = 11;
+    const fontSizeChapter = 16;
+    const fontSizeSubChapter = 14;
+    
+    const getMargins = (pageNum: number) => {
+      return {
+        left: pageNum % 2 === 0 ? marginInner : marginOuter,
+        right: pageNum % 2 === 0 ? marginOuter : marginInner
+      };
+    };
+
+    const isChapterTitle = (line: string): 'chapter' | 'subchapter' | 'none' => {
+      const trimmed = line.trim();
+      if (/^#{1,3}\s/.test(trimmed)) return 'chapter';
+      if (/^(CAP[ií]TULO|Chapter)\s*\.?\s*[IVXLC0-9]+/i.test(trimmed)) return 'chapter';
+      if (/^[IVXLC]+[.\s]/.test(trimmed) && trimmed.length < 30) return 'chapter';
+      if (/^\d+[.\)]\s/.test(trimmed) && trimmed.length < 40) return 'subchapter';
+      return 'none';
+    };
+
+    const parseContent = (text: string) => {
+      const lines = text.split('\n');
+      const parsed: { type: string; text: string; }[] = [];
+      
+      lines.forEach(line => {
+        const chapterType = isChapterTitle(line);
+        if (chapterType === 'chapter') {
+          parsed.push({ type: 'chapter', text: line.replace(/^#+\s*/, '').trim() });
+        } else if (chapterType === 'subchapter') {
+          parsed.push({ type: 'subchapter', text: line.trim() });
+        } else if (line.trim()) {
+          parsed.push({ type: 'body', text: line.trim() });
+        } else {
+          parsed.push({ type: 'blank', text: '' });
+        }
+      });
+      
+      return parsed;
+    };
+
+    const wrapText = (text: string, contentWidth: number, currentFontSize: number): string[] => {
+      doc.setFontSize(currentFontSize);
+      return doc.splitTextToSize(text, contentWidth);
+    };
+
+    let pageNum = 1;
+    const parsedContent = parseContent(content);
+    let currentY = marginTop;
+    const addPage = () => {
+      doc.addPage();
+      pageNum++;
+      currentY = marginTop;
+    };
+
+    doc.setFont('times', 'normal');
+    
+    parsedContent.forEach((item) => {
+      if (item.type === 'blank') {
+        currentY += lineHeight * 0.8;
+        return;
+      }
+
+      const margins = getMargins(pageNum);
+      const contentWidth = pageWidthMm - margins.left - margins.right;
+
+      let fontSize = fontSizeBody;
+      if (item.type === 'chapter') fontSize = fontSizeChapter;
+      if (item.type === 'subchapter') fontSize = fontSizeSubChapter;
+
+      const wrappedLines = wrapText(item.text, contentWidth, fontSize);
+
+      wrappedLines.forEach((line: string) => {
+        if (currentY + lineHeight > pageHeightMm - marginBottom) {
+          doc.setFontSize(9);
+          doc.setFont('times', 'normal');
+          doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
+          addPage();
+        }
+
+        doc.setFontSize(fontSize);
+        if (item.type === 'chapter' && wrappedLines.indexOf(line) === 0) {
+          doc.setFont('times', 'bold');
+          const xPos = pageNum % 2 === 0 ? pageWidthMm - margins.right : margins.left;
+          doc.text(line, xPos, currentY, { align: pageNum % 2 === 0 ? 'right' : 'left' });
+          currentY += lineHeight * 1.5;
+        } else if (item.type === 'subchapter' && wrappedLines.indexOf(line) === 0) {
+          doc.setFont('times', 'bold');
+          doc.text(line, margins.left, currentY);
+          currentY += lineHeight * 1.3;
+        } else {
+          doc.setFont('times', 'normal');
+          doc.text(line, margins.left, currentY);
+          currentY += lineHeight;
+        }
+      });
+
+      if (item.type === 'chapter') {
+        currentY += lineHeight * 1.2;
+      } else {
+        currentY += lineHeight * 0.5;
+      }
+    });
+
+    doc.setFontSize(9);
+    doc.setFont('times', 'normal');
+    doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
+
+    doc.addPage();
+    pageNum++;
+    
+    doc.setFontSize(10);
+    doc.setFont('times', 'italic');
+    doc.text(title, pageWidthMm / 2, pageHeightMm / 2 - 10, { align: 'center' });
+    doc.setFont('times', 'normal');
+    doc.text(author, pageWidthMm / 2, pageHeightMm / 2, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setFont('times', 'italic');
+    doc.text('https://kdp.amazon.com', pageWidthMm / 2, pageHeightMm - 15, { align: 'center' });
+
+    doc.save(`${title.replace(/\s+/g, '_')}_KDP_6x9.pdf`);
+    toast.success('PDF formatado para KDP (6" x 9") exportado com sucesso!');
+  };
+
   if (!book && id) return null;
 
   return (
@@ -734,9 +874,17 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
                   onClick={handleDownloadManuscriptPdf}
                   className="p-4 bg-[#D4AF37]/10 border border-[#D4AF37]/30 rounded-2xl text-left hover:border-[#D4AF37] hover:bg-[#D4AF37]/20 transition-all group"
                 >
-                  <FileDown className="w-6 h-6 text-[#D4AF37] mb-2" />
+                  <FileText className="w-6 h-6 text-[#D4AF37] mb-2" />
                   <h4 className="text-[#D4AF37] font-bold">Exportar Manuscrito (PDF)</h4>
                   <p className="text-gray-400 text-xs">Gera PDF formatado para editoras e agentes.</p>
+                </button>
+                <button 
+                  onClick={handleDownloadKdpPdf}
+                  className="p-4 bg-green-500/10 border border-green-500/30 rounded-2xl text-left hover:border-green-500 hover:bg-green-500/20 transition-all group"
+                >
+                  <FileDown className="w-6 h-6 text-green-400 mb-2" />
+                  <h4 className="text-green-400 font-bold">Exportar para KDP (PDF)</h4>
+                  <p className="text-gray-400 text-xs">Formato 6&quot; x 9&quot; com margens KDP.</p>
                 </button>
               </div>
 

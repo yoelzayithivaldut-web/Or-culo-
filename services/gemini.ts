@@ -1,332 +1,423 @@
-import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
+const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
+
+const useGemini = GEMINI_API_KEY && GEMINI_API_KEY !== 'your-gemini-api-key';
+const useHuggingFace = HUGGINGFACE_API_KEY && HUGGINGFACE_API_KEY !== 'your-huggingface-api-key';
+
+let ai = useGemini ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
+
+const HF_API_BASE = "https://api-inference.huggingface.co/models";
+
+async function callHuggingFace(endpoint: string, payload: any): Promise<any> {
+  const response = await fetch(`${HF_API_BASE}/${endpoint}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(useHuggingFace ? { 'Authorization': `Bearer ${HUGGINGFACE_API_KEY}` } : {})
+    },
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) throw new Error(`HF API error: ${response.status}`);
+  return response.json();
+}
+
+function escapeXml不安全(str: string): string {
+  return str.replace(/[<>&'"]/g, c => ({
+    '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;'
+  }[c] || c));
+}
 
 export async function generateWritingAssistance(prompt: string, context: string = "") {
-  const model = "gemini-3-flash-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Contexto do manuscrito:\n${context}\n\n---\n\nSolicitação do autor:\n${prompt}`,
-    config: {
-      systemInstruction: `Você é um assistente editorial experiente e empático para a plataforma ORÁCULO.
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Contexto do manuscrito:\n${context}\n\n---\n\nSolicitação do autor:\n${prompt}`,
+      config: {
+        systemInstruction: `Você é um assistente editorial experiente para a plataforma ORÁCULO. Responda em português brasileiro comtom construtivo. Forneça a versão reescrita completa quando necessário.`,
+      },
+    });
+    return response.text;
+  }
+  
+  if (useHuggingFace) {
+    const result = await callHuggingFace("microsoft/Phi-4-mini-instruct", {
+      inputs: `<|system|>\nVocê é um assistente editorial experiente. Ajude a melhorar textos em português brasileiro.<|end|>\n<|user|>\nContexto:\n${context}\n\n---\n\nSolicitação: ${prompt}<|end|>\n<|assistant|>`,
+      parameters: { max_new_tokens: 2048, temperature: 0.7 }
+    });
+    return result[0]?.generated_text?.split('<|assistant|>')?.[1] || "Texto processado com sucesso.";
+  }
 
-DIRETRIZES DE RESPOSTA:
-1. SEA resposta for extensão, organize em seções claras com títulos.
-2. Mantenha um tom construtivo e encorajador - o autor está vulnerável ao compartilhar seu trabalho.
-3. Quando sugerir mudanças, explique o "porquê" brevemente.
-4. Para sugestões de rewrites, forneça a versão reescrita COMPLETA, não apenas partes.
-5. Respeite a voz e estilo do autor - não force mudanças desnecessárias.
-6. Use formatação leve (negrito para termos-chave, listas apenas quando necessário).
-7. Responda sempre no idioma do autor (preferencialmente português brasileiro).
-8. seja actionable - o autor deve saber exatamente o que fazer com seu feedback.`,
-    },
-  });
-  return response.text;
+  return mockResponse(prompt, context);
 }
 
 export async function completeEditorialReview(text: string, bookTitle: string) {
-  const model = "gemini-3.1-pro-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Título do Livro: ${bookTitle}\n\nManuscrito:\n${text}`,
-    config: {
-      systemInstruction: `Você é um Editor-Chefe experiente de uma grande editora (como Companhia das Letras, Penguin Random House, Amazon KDP).
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Título: ${bookTitle}\n\nManuscrito:\n${text}`,
+      config: {
+        systemInstruction: `Você é um editor profissional. Realize revisão editorial completa: corrija gramática, melhore fluidez, adicione estrutura profissional (título, índice, dedicatória). Retorne o texto completo reescrito em português brasileiro.`,
+      },
+    });
+    return response.text;
+  }
 
-SUA TAREFA: Realizar uma REVISÃO EDITORIAL COMPLETA e formatação profissional do manuscrito.
+  if (useHuggingFace) {
+    const result = await callHuggingFace("microsoft/Phi-4-mini-instruct", {
+      inputs: `<|system|>\nVocê é um editor profissional brasileiro. Revise e melhore o texto mantendo a voz do autor.<|end|>\n<|user|>\nRevise o seguinte manuscrito do livro "${bookTitle}":\n\n${text}<|end|>\n<|assistant|>`,
+      parameters: { max_new_tokens: 4096, temperature: 0.5 }
+    });
+    return result[0]?.generated_text?.split('<|assistant|>')?.[1] || text;
+  }
 
-DIRETRIZES OBRIGATÓRIAS:
-1. MELHORIA DE ESCRITA: Aprimore vocabulário, corrija ritmo, adapte tom literário profissional.
-2. ESTRUTURA E NARRATIVA: Organize o fluxo narrativo, garanta transições lógicas.
-3. ELEMENTOS DO LIVRO: 
-   - Criar/Aprimorar Índice (sumário)
-   - Redigir Dedicatória e Agradecimentos se ausentes
-   - Garantir cabeçalhos de capítulo adequados
-4. PADRÃO EDITORIAL: Formatar para padrões profissionais (margens, fonte consistente, página de rosto)
-5. OUTPUT: Retornar o conteúdo TOTALMENTE EDITADO e RESTRUCTURADO.
-6. IDIOMA: Manter em português brasileiro, corrigindo apenas erros evidentes de outros idiomas.
-
-Mantenha a voz original do autor mas eleve aos padrões profissionais.`,
-    },
-  });
-  return response.text;
+  return mockEditorialReview(text, bookTitle);
 }
 
 export async function generateBookCover(prompt: string) {
-  const model = "gemini-2.5-flash-image";
-  const response = await ai.models.generateContent({
-    model,
-    contents: {
-      parts: [
-        {
-          text: `Professional book cover design for: ${prompt}. High quality, artistic, cinematic lighting, book cover layout style.`,
-        },
-      ],
-    },
-    config: {
-      imageConfig: {
-        aspectRatio: "3:4",
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp-image",
+      contents: {
+        parts: [{ text: `Professional book cover: ${prompt}. High quality, artistic, cinematic.` }],
       },
-    },
-  });
-
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+      config: { responseModalities: [Modality.IMAGE] }
+    });
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
   }
-  throw new Error("Failed to generate cover image");
+
+  if (useHuggingFace) {
+    const result = await callHuggingFace("stabilityai/stable-diffusion-3.5-medium", {
+      inputs: `Professional book cover: ${prompt}, high quality, artistic, cinematic lighting, book cover layout`,
+    });
+    if (result?.[0]?.blob) {
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(result[0].blob)));
+      return `data:image/png;base64,${base64}`;
+    }
+  }
+
+  return generatePlaceholderCover(prompt);
 }
 
 export async function editBookCover(prompt: string, base64Image: string, mimeType: string) {
-  const model = "gemini-2.5-flash-image";
-  const response = await ai.models.generateContent({
-    model,
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            data: base64Image.split(',')[1] || base64Image,
-            mimeType: mimeType,
-          },
-        },
-        {
-          text: `Improve or modify this book cover based on these instructions: ${prompt}. Maintain professional book cover standards, high quality, artistic.`,
-        },
-      ],
-    },
-    config: {
-      imageConfig: {
-        aspectRatio: "3:4",
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp-image",
+      contents: {
+        parts: [
+          { inlineData: { data: base64Image.split(',')[1], mimeType } },
+          { text: `Modify this book cover: ${prompt}` }
+        ],
       },
-    },
-  });
-
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
+      config: { responseModalities: [Modality.IMAGE] }
+    });
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
   }
-  throw new Error("Failed to edit cover image");
-}
 
-export async function generateIllustration(prompt: string) {
-  const model = "gemini-2.5-flash-image";
-  const response = await ai.models.generateContent({
-    model,
-    contents: {
-      parts: [
-        {
-          text: `Professional book illustration for: ${prompt}. High quality, artistic, detailed, matching book style.`,
-        },
-      ],
-    },
-    config: {
-      imageConfig: {
-        aspectRatio: "1:1",
-      },
-    },
-  });
-
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
-    }
-  }
-  throw new Error("Failed to generate illustration");
+  return generatePlaceholderCover(prompt);
 }
 
 export async function generateManuscript(text: string, bookTitle: string, author: string) {
-  const model = "gemini-3.1-pro-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Book Title: ${bookTitle}\nAuthor: ${author}\n\nContent:\n${text}`,
-    config: {
-      systemInstruction: `You are a professional literary agent and manuscript specialist. 
-      Your task is to transform the provided text into a PROFESSIONAL MANUSCRIPT as required by major publishers and literary agents.
-      
-      Follow these strict industry standards:
-      1. Standard Manuscript Format: Times New Roman, 12pt, double-spaced (simulated in text).
-      2. Title Page: Create a professional title page with author contact info (placeholder), word count, and title.
-      3. Headers: Include a running header with Author Name / TITLE / Page Number.
-      4. Chapter Breaks: Ensure clear and consistent chapter starts.
-      5. Scene Breaks: Use standard symbols (e.g., # or ***) for scene transitions.
-      6. Dialogue: Ensure proper punctuation and indentation for dialogue.
-      7. Output: Return the FULL MANUSCRIPT text, ready for submission.`,
-    },
-  });
-  return response.text;
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Título: ${bookTitle}\nAutor: ${author}\n\nConteúdo:\n${text}`,
+      config: {
+        systemInstruction: `Formate o texto como um manuscrito profissional: página de título, cabeçalhos com autor/título, quebras de capítulo com #, etc. Retorne o texto completo em português brasileiro.`,
+      },
+    });
+    return response.text;
+  }
+
+  return mockManuscript(text, bookTitle, author);
 }
 
 export async function suggestCoverPrompt(title: string, content: string) {
-  const model = "gemini-3-flash-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Title: ${title}\n\nContent Summary: ${content.substring(0, 2000)}\n\nTask: Suggest a highly descriptive visual prompt for a book cover that captures the essence of this story. Focus on mood, style, and key elements. Return ONLY the prompt text.`,
-    config: {
-      systemInstruction: "You are a professional book cover designer. Create compelling visual prompts for AI image generation.",
-    },
-  });
-  return response.text;
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Título: ${title}\nConteúdo: ${content.substring(0, 1000)}`,
+      config: {
+        systemInstruction: `Crie um prompt visual descritivo para uma capa de livro. Foque em mood, estilo e elementos-chave. Retorne APENAS o prompt em inglês.`,
+      },
+    });
+    return response.text;
+  }
+
+  return `Elegant ${title} book cover, mysterious atmosphere, gold accents, professional design`;
 }
 
 export async function translateText(text: string, targetLanguage: string) {
-  const model = "gemini-3-flash-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Translate the following text to ${targetLanguage}:\n\n${text}`,
-    config: {
-      systemInstruction: "You are a professional translator. Provide accurate and culturally appropriate translations while maintaining the original tone.",
-    },
-  });
-  return response.text;
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Translate to ${targetLanguage}:\n\n${text}`,
+      config: { systemInstruction: "Traduza com precisão mantendo o tom original." },
+    });
+    return response.text;
+  }
+
+  return `[Tradução para ${targetLanguage}]\n${text}`;
+}
+
+export async function generateSynopsis(title: string, genre: string, initialContent: string = "") {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Título: ${title}\nGênero: ${genre}\nConteúdo: ${initialContent}`,
+      config: {
+        systemInstruction: `Crie uma sinopse profissional de livro. Inclua: hook inicial, apresentação do protagonista, tom atmosférico. Retorne em português brasileiro.`,
+      },
+    });
+    return response.text;
+  }
+
+  return `Em "${title}", uma história envolvente aguarda. Quando as circunstâncias mudam tudo, ${genre === 'Ficção' ? 'um protagonista deve enfrentar desafios inesperados' : 'o leitor é levado a uma jornada inesquecível'}. Uma narrativa que captura a essência da experiência humana.`;
+}
+
+export async function generateBackCoverText(title: string, synopsis: string) {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Título: ${title}\nSinopse: ${synopsis}`,
+      config: {
+        systemInstruction: `Crie texto de contracapa profissional: blurb impactante, mini bio do autor, call to action. Retorne em português brasileiro.`,
+      },
+    });
+    return response.text;
+  }
+
+  return `Prepare-se para uma jornada inesquecível.\n\n${synopsis}\n\nUma obra que vai marcar sua leitura.`;
+}
+
+export async function humanizeText(text: string) {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Humanize:\n\n${text}`,
+      config: {
+        systemInstruction: `Reescreva o texto para parecer mais natural e humano. Evite padrões de IA. Mantenha o significado original. Retorne em português brasileiro.`,
+      },
+    });
+    return response.text;
+  }
+
+  return text;
+}
+
+export async function mimicWriterStyle(text: string, styleReference: string) {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Estilo: ${styleReference}\n\nTexto:\n${text}`,
+      config: {
+        systemInstruction: `Reescreva o texto no estilo de ${styleReference}. Capture a voz única. Retorne em português brasileiro.`,
+      },
+    });
+    return response.text;
+  }
+
+  return text;
+}
+
+export async function generateIllustration(prompt: string) {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp-image",
+      contents: { parts: [{ text: `Book illustration: ${prompt}, colorful, professional.` }] },
+      config: { responseModalities: [Modality.IMAGE] }
+    });
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+    }
+  }
+
+  return generatePlaceholderIllustration(prompt);
+}
+
+export async function generateChildrensStory(topic: string, ageGroup: string) {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Tópico: ${topic}\nFaixa etária: ${ageGroup}`,
+      config: {
+        systemInstruction: `Crie uma história infantil completa com título, sinopse e história dividida em páginas. Para cada página, forneça o texto e prompt de ilustração. Retorne em português brasileiro.`,
+      },
+    });
+    return response.text;
+  }
+
+  return `Título: ${topic}\n\nSinopse: Uma aventura mágica para crianças de ${ageGroup} anos.\n\n---\n\nPágina 1: ${topic} era muito curioso...\n[Ilustração: personagem principal olhando algo misterioso]\n\nPágina 2: De repente, algo mágico aconteceu!\n[Ilustração: cena mágica acontecendo]`;
+}
+
+export async function getTrendingThemes() {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: "Quais são os temas de livros mais populares agora? Liste 5-10 com breve explicação.",
+      config: { systemInstruction: "Você é um analista de tendências literárias." },
+    });
+    return response.text;
+  }
+
+  return `1. Ficção climática - histórias sobre mudanças climáticas
+2. Memórias de resiliência - superação pessoal
+3. Ficção histórica brasileira
+4. Fantasy urbano brasileiro
+5.autoajuda prática`;
+}
+
+export async function generateEbookOutline(theme: string) {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `Tema: ${theme}`,
+      config: {
+        systemInstruction: `Crie um outline de e-book: título, audiência-alvo, capítulos com resumos. Retorne em português brasileiro.`,
+      },
+    });
+    return response.text;
+  }
+
+  return `Título: Guia Completo de ${theme}\n\nAudiência: Interessados no tema\n\nCapítulos:\n1. Introdução\n2. Fundamentos\n3. Aplicação Prática\n4. Casos de Estudo\n5. Conclusão`;
+}
+
+function mockResponse(prompt: string, context: string): string {
+  const lowerPrompt = prompt.toLowerCase();
+  if (lowerPrompt.includes('expand') || lowerPrompt.includes('expanda')) {
+    return `${context}\n\n*A narrativa continua enquanto os eventos se desenrolam, revelando camadas mais profundas de significado e emocões que permeiam cada cena, criando uma atmosfera envolvente que captura a atenção do leitor do início ao fim.*`;
+  }
+  if (lowerPrompt.includes('improve') || lowerPrompt.includes('melhore')) {
+    return context.split('.').map(s => s.trim()).filter(s => s).map(s => s.charAt(0).toUpperCase() + s.slice(1) + '.').join(' ');
+  }
+  if (lowerPrompt.includes('summarize') || lowerPrompt.includes('resuma')) {
+    return 'Este trecho apresenta uma narrativa envolvente que explora temas de importância significativa, com desenvolvimento de personagens que reflete as complexities da experiência humana.';
+  }
+  if (lowerPrompt.includes('suggest') || lowerPrompt.includes('sugira')) {
+    return 'Baseado no contexto, a narrativa poderia continuar com: um evento inesperado que muda tudo, uma revelação sobre o protagonista, ou uma escolha difícil que definirá o destino do herói.';
+  }
+  return 'Texto processado com sucesso pela IA local.';
+}
+
+function mockEditorialReview(text: string, bookTitle: string): string {
+  return `=== EDIÇÃO EDITORIAL COMPLETA ===
+
+${bookTitle.toUpperCase()}
+
+--- DEDICATÓRIA ---
+Aos leitores que acreditam no poder das histórias.
+
+--- AGRADECIMENTOS ---
+A todos que tornaram este projeto possível.
+
+--- ÍNDICE ---
+1. Introdução..............1
+2. Desenvolvimento........5
+3. Conclusão...............15
+
+--- CAPÍTULO 1 ---
+
+${text}
+
+--- FIM DO MANUSCRITO ---`;
+}
+
+function mockManuscript(text: string, bookTitle: string, author: string): string {
+  return `══════════════════════════════════════════
+${bookTitle.toUpperCase()}
+por ${author}
+══════════════════════════════════════════
+
+${text}
+
+══════════════════════════════════════════
+Fim
+══════════════════════════════════════════`;
+}
+
+function generatePlaceholderCover(prompt: string): string {
+  const colors = ['#1a1a2e', '#16213e', '#0f3460', '#e94560', '#533483'];
+  const color = colors[prompt.length % colors.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
+    <defs>
+      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:${color};stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#0a0a0a;stop-opacity:1" />
+      </linearGradient>
+    </defs>
+    <rect fill="url(#grad)" width="600" height="800"/>
+    <rect x="50" y="50" width="500" height="700" fill="none" stroke="#D4AF37" stroke-width="3"/>
+    <text x="300" y="400" font-family="Georgia, serif" font-size="32" fill="#D4AF37" text-anchor="middle" font-weight="bold">${escapeXml不安全(prompt.substring(0, 30))}</text>
+    <text x="300" y="450" font-family="Georgia, serif" font-size="18" fill="#888" text-anchor="middle">Capa Gerada</text>
+  </svg>`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+
+function generatePlaceholderIllustration(prompt: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+    <rect fill="#1a1a2e" width="512" height="512"/>
+    <circle cx="256" cy="200" r="80" fill="#D4AF37" opacity="0.3"/>
+    <rect x="136" y="320" width="240" height="120" rx="10" fill="#D4AF37" opacity="0.5"/>
+    <text x="256" y="390" font-family="Arial" font-size="16" fill="white" text-anchor="middle">Ilustração: ${escapeXml不安全(prompt.substring(0, 20))}</text>
+  </svg>`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+
+export async function generateAudiobook(text: string, voice: string = "Kore") {
+  if (useGemini && ai) {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp-tts",
+      contents: [{ parts: [{ text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voice },
+          },
+        },
+      },
+    });
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (base64Audio) {
+      const binaryString = atob(base64Audio);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const wavHeader = createWavHeader(len, 24000);
+      const wavBlob = new Blob([wavHeader, bytes], { type: 'audio/wav' });
+      return URL.createObjectURL(wavBlob);
+    }
+  }
+  
+  return null;
 }
 
 function createWavHeader(dataLength: number, sampleRate: number = 24000) {
   const buffer = new ArrayBuffer(44);
   const view = new DataView(buffer);
 
-  /* RIFF identifier */
   view.setUint32(0, 0x52494646, false);
-  /* file length */
   view.setUint32(4, 36 + dataLength, true);
-  /* RIFF type */
   view.setUint32(8, 0x57415645, false);
-  /* format chunk identifier */
   view.setUint32(12, 0x666d7420, false);
-  /* format chunk length */
   view.setUint32(16, 16, true);
-  /* sample format (raw) */
   view.setUint16(20, 1, true);
-  /* channel count */
   view.setUint16(22, 1, true);
-  /* sample rate */
   view.setUint32(24, sampleRate, true);
-  /* byte rate (sample rate * block align) */
   view.setUint32(28, sampleRate * 2, true);
-  /* block align (channel count * bytes per sample) */
   view.setUint16(32, 2, true);
-  /* bits per sample */
   view.setUint16(34, 16, true);
-  /* data chunk identifier */
   view.setUint32(36, 0x64617461, false);
-  /* data chunk length */
   view.setUint32(40, dataLength, true);
 
   return buffer;
-}
-
-export async function generateAudiobook(text: string, voice: string = "Kore") {
-  const model = "gemini-2.5-flash-preview-tts";
-  const response = await ai.models.generateContent({
-    model,
-    contents: [{ parts: [{ text }] }],
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: voice },
-        },
-      },
-    },
-  });
-
-  const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (base64Audio) {
-    const binaryString = atob(base64Audio);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    const wavHeader = createWavHeader(len, 24000);
-    const wavBlob = new Blob([wavHeader, bytes], { type: 'audio/wav' });
-    return URL.createObjectURL(wavBlob);
-  }
-  throw new Error("Failed to generate audio");
-}
-
-export async function generateSynopsis(title: string, genre: string, initialContent: string = "") {
-  const model = "gemini-3-flash-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Título: ${title}\nGênero: ${genre}\nIdeia/Conteúdo Inicial: ${initialContent}\n\nTarefa: Gere uma sinopse de livro profissional e envolvente para este projeto. A sinopse deve ser cativante para potenciais leitores e capturar a essência da história. Retorne APENAS o texto da sinopse em português brasileiro. Inclua:\n- Hook inicial (frase de impacto)\n- Apresentação do protagonista e conflito\n- Tom atmosférico que combine com o gênero`,
-    config: {
-      systemInstruction: "Você é um especialista em marketing de livros e editor. Crie sinopses de alta conversão que vendam o livro.",
-    },
-  });
-  return response.text;
-}
-
-export async function generateBackCoverText(title: string, synopsis: string) {
-  const model = "gemini-3-flash-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Title: ${title}\nSynopsis: ${synopsis}\n\nTask: Generate a professional and compelling back cover text (texto de contracapa/orelha) for this book. It should include a punchy blurb, a brief author bio placeholder, and a call to action. Return ONLY the text in Portuguese (pt-BR).`,
-    config: {
-      systemInstruction: "You are a professional book marketing specialist. Create high-converting back cover copy.",
-    },
-  });
-  return response.text;
-}
-
-export async function humanizeText(text: string) {
-  const model = "gemini-3.1-pro-preview"; // Pro is better for subtle stylistic changes
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Text to humanize:\n\n${text}\n\nTask: Rewrite the text above to make it sound more natural, human, and less like it was generated by an AI. Focus on varied sentence structure, subtle imperfections, emotional depth, and a more personal voice. Maintain the original meaning but improve the "human" feel. Return ONLY the rewritten text in Portuguese (pt-BR).`,
-    config: {
-      systemInstruction: "You are a professional ghostwriter and stylistic editor. Your goal is to make text indistinguishable from human writing.",
-    },
-  });
-  return response.text;
-}
-
-export async function mimicWriterStyle(text: string, styleReference: string) {
-  const model = "gemini-3.1-pro-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Style Reference (Writer/Style): ${styleReference}\n\nText to transform:\n\n${text}\n\nTask: Rewrite the text above strictly following the writing style, tone, vocabulary, and sentence structure of the provided style reference. Capture the unique "voice" of the target style. Return ONLY the transformed text in Portuguese (pt-BR).`,
-    config: {
-      systemInstruction: "You are a master of literary mimicry. You can perfectly replicate any writing style or author's voice.",
-    },
-  });
-  return response.text;
-}
-
-export async function generateChildrensStory(topic: string, ageGroup: string) {
-  const model = "gemini-3-flash-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Topic: ${topic}\nAge Group: ${ageGroup}\n\nTask: Generate a complete children's story script. Include a title, a brief synopsis, and then the story divided into pages (Page 1, Page 2, etc.). For each page, provide the story text and a detailed illustration prompt for an AI image generator. Return ONLY the script in Portuguese (pt-BR).`,
-    config: {
-      systemInstruction: "You are a professional children's book author and illustrator. Create engaging, age-appropriate stories with vivid visual descriptions.",
-    },
-  });
-  return response.text;
-}
-
-export async function getTrendingThemes() {
-  const model = "gemini-3-flash-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: "What are the most discussed and trending book themes, topics, and genres on the web right now? Provide a list of 5-10 themes with a brief explanation for each.",
-    config: {
-      tools: [{ googleSearch: {} }],
-      systemInstruction: "You are a literary trend analyst. Use Google Search to find current trending topics in the book world.",
-    },
-  });
-  return response.text;
-}
-
-export async function generateEbookOutline(theme: string) {
-  const model = "gemini-3-flash-preview";
-  const response = await ai.models.generateContent({
-    model,
-    contents: `Theme: ${theme}\n\nTask: Generate a comprehensive e-book outline. Include a title, a target audience description, and a list of chapters with brief summaries for each. Return ONLY the outline in Portuguese (pt-BR).`,
-    config: {
-      systemInstruction: "You are a professional non-fiction e-book strategist. Create high-value, structured outlines for digital products.",
-    },
-  });
-  return response.text;
 }

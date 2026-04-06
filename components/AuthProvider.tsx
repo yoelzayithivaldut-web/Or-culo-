@@ -99,21 +99,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      let currentUser = session?.user ?? null;
+      let currentUser: Profile | null = null;
       
-      if (currentUser) {
-        const profile = await supabaseService.getProfile(currentUser.id);
-        const isAdmin = checkIsAdmin(currentUser.email);
+      if (session?.user) {
+        const supabaseUser = session.user;
+        const profile = await supabaseService.getProfile(supabaseUser.id);
+        const isAdmin = checkIsAdmin(supabaseUser.email);
         
-        if (profile) {
-          setOnboardingCompleted(isAdmin ? true : (profile.onboarding_completed ?? false));
-          setRole(profile.role || (isAdmin ? 'admin' : 'user'));
-          setPlan(profile.plan || (isAdmin ? 'premium' : 'free'));
-        } else {
-          setOnboardingCompleted(isAdmin ? true : (currentUser.user_metadata?.onboarding_completed ?? false));
-          setRole(isAdmin ? 'admin' : 'user');
-          setPlan(isAdmin ? 'premium' : 'free');
-        }
+        currentUser = {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          display_name: profile?.display_name || supabaseUser.user_metadata?.full_name || null,
+          onboarding_completed: isAdmin ? true : (profile?.onboarding_completed ?? supabaseUser.user_metadata?.onboarding_completed ?? false),
+          address: profile?.address || null,
+          phone: profile?.phone || null,
+          education_level: profile?.education_level || null,
+          main_genre: profile?.main_genre || null,
+          writing_goal: profile?.writing_goal || null,
+          plan: profile?.plan || (isAdmin ? 'premium' : 'free'),
+          role: profile?.role || (isAdmin ? 'admin' : 'user'),
+          updated_at: profile?.updated_at || new Date().toISOString(),
+          created_at: profile?.created_at || new Date().toISOString(),
+          user_metadata: supabaseUser.user_metadata
+        };
+        
+        setOnboardingCompleted(isAdmin ? true : (profile?.onboarding_completed ?? supabaseUser.user_metadata?.onboarding_completed ?? false));
+        setRole(profile?.role || (isAdmin ? 'admin' : 'user'));
+        setPlan(profile?.plan || (isAdmin ? 'premium' : 'free'));
       } else {
         setOnboardingCompleted(false);
         setRole('user');
