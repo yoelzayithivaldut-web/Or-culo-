@@ -704,10 +704,10 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
         )}
       </div>
 
-      {/* AI Menu Modal */}
+      {/* AI Menu Modal - Dashboard Horizontal */}
       <AnimatePresence>
         {showAiMenu && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -716,247 +716,161 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
               className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-[#0A0A0A] border border-[#D4AF37]/20 p-8 rounded-3xl w-full max-w-2xl relative z-10 max-h-[90vh] overflow-y-auto"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0A0A0A] border border-white/10 p-0 rounded-3xl w-full max-w-7xl relative z-10 max-h-[95vh] overflow-hidden flex flex-col"
             >
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
+              {/* Header */}
+              <div className="flex items-center justify-between px-8 py-6 border-b border-white/10 bg-gradient-to-r from-[#0A0A0A] to-[#0F0F0F]">
+                <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-gradient-to-br from-[#D4AF37] to-[#B8962E] rounded-2xl flex items-center justify-center shadow-lg shadow-[#D4AF37]/20">
                     <Sparkles className="text-black w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Editor Inteligente Oráculo</h2>
+                    <h2 className="text-2xl font-bold text-white">Painel Inteligente Oráculo</h2>
                     <p className="text-gray-400 text-sm">Assistente editorial profissional</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setShowAiMenu(false)}
-                  className="p-2 hover:bg-white/10 rounded-xl text-gray-500 hover:text-white transition-all"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-3">
+                  <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+                    <span className="text-gray-400 text-xs">Dashboard</span>
+                    <span className="text-white text-sm font-bold ml-2">CRM Editorial</span>
+                  </div>
+                  <button 
+                    onClick={() => setShowAiMenu(false)}
+                    className="p-2 hover:bg-white/10 rounded-xl text-gray-500 hover:text-white transition-all"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xs font-bold text-[#D4AF37] uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <Wand2 className="w-3 h-3" /> Ferramentas de Escrita
-                  </h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button 
-                      onClick={() => handleAiAction('improve')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-[#D4AF37]/50 hover:from-[#D4AF37]/10 hover:to-[#D4AF37]/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-[#D4AF37]/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-[#D4AF37]/20 transition-all">
-                        <Wand2 className="w-4 h-4 text-[#D4AF37]" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-[#D4AF37]">Melhorar Escrita</h4>
-                      <p className="text-gray-500 text-[10px]">Gramática e estilo</p>
+              {/* Dashboard Grid */}
+              <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                <div className="grid grid-cols-4 gap-6">
+                  {/* Row 1: Ferramentas de Escrita (Dourado) */}
+                  <div className="col-span-1 space-y-3">
+                    <h3 className="text-xs font-bold text-[#D4AF37] uppercase tracking-widest mb-2 flex items-center gap-2 px-1">
+                      <Wand2 className="w-3 h-3" /> Ferramentas de Escrita
+                    </h3>
+                    <button onClick={() => handleAiAction('improve')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-[#D4AF37]/50 hover:from-[#D4AF37]/10 hover:to-[#D4AF37]/5 transition-all group">
+                      <div className="w-10 h-10 bg-[#D4AF37]/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#D4AF37]/20 transition-all"><Wand2 className="w-5 h-5 text-[#D4AF37]" /></div>
+                      <h4 className="text-white font-bold">Melhorar Escrita</h4>
+                      <p className="text-gray-500 text-xs">Gramática e estilo</p>
                     </button>
-                    <button 
-                      onClick={() => handleAiAction('expand')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-[#D4AF37]/50 hover:from-[#D4AF37]/10 hover:to-[#D4AF37]/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-[#D4AF37]/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-[#D4AF37]/20 transition-all">
-                        <Maximize2 className="w-4 h-4 text-[#D4AF37]" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-[#D4AF37]">Expandir Texto</h4>
-                      <p className="text-gray-500 text-[10px]">Mais detalhes</p>
+                    <button onClick={() => handleAiAction('expand')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-[#D4AF37]/50 hover:from-[#D4AF37]/10 hover:to-[#D4AF37]/5 transition-all group">
+                      <div className="w-10 h-10 bg-[#D4AF37]/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#D4AF37]/20 transition-all"><Maximize2 className="w-5 h-5 text-[#D4AF37]" /></div>
+                      <h4 className="text-white font-bold">Expandir Texto</h4>
+                      <p className="text-gray-500 text-xs">Mais detalhes</p>
                     </button>
-                    <button 
-                      onClick={() => handleAiAction('summarize')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-[#D4AF37]/50 hover:from-[#D4AF37]/10 hover:to-[#D4AF37]/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-[#D4AF37]/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-[#D4AF37]/20 transition-all">
-                        <Minimize2 className="w-4 h-4 text-[#D4AF37]" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-[#D4AF37]">Resumir</h4>
-                      <p className="text-gray-500 text-[10px]">Versão concisa</p>
+                    <button onClick={() => handleAiAction('summarize')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-[#D4AF37]/50 hover:from-[#D4AF37]/10 hover:to-[#D4AF37]/5 transition-all group">
+                      <div className="w-10 h-10 bg-[#D4AF37]/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#D4AF37]/20 transition-all"><Minimize2 className="w-5 h-5 text-[#D4AF37]" /></div>
+                      <h4 className="text-white font-bold">Resumir</h4>
+                      <p className="text-gray-500 text-xs">Versão concisa</p>
                     </button>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <Sparkles className="w-3 h-3" /> Criatividade IA
-                  </h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button 
-                      onClick={() => handleAiAction('suggest')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-purple-500/50 hover:from-purple-500/10 hover:to-purple-500/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-purple-500/20 transition-all">
-                        <Sparkles className="w-4 h-4 text-purple-400" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-purple-400">Ideias</h4>
-                      <p className="text-gray-500 text-[10px]">Próximos passos</p>
+                  {/* Row 2: Criatividade IA (Roxo) */}
+                  <div className="col-span-1 space-y-3">
+                    <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2 px-1">
+                      <Sparkles className="w-3 h-3" /> Criatividade IA
+                    </h3>
+                    <button onClick={() => handleAiAction('suggest')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-purple-500/50 hover:from-purple-500/10 hover:to-purple-500/5 transition-all group">
+                      <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-500/20 transition-all"><Sparkles className="w-5 h-5 text-purple-400" /></div>
+                      <h4 className="text-white font-bold">Sugerir Próximo Passo</h4>
+                      <p className="text-gray-500 text-xs">Próximos passos da narrativa</p>
                     </button>
-                    <button 
-                      onClick={() => handleAiAction('humanize')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-purple-500/50 hover:from-purple-500/10 hover:to-purple-500/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-purple-500/20 transition-all">
-                        <UserCircle className="w-4 h-4 text-purple-400" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-purple-400">Humanizar</h4>
-                      <p className="text-gray-500 text-[10px]">Texto natural</p>
+                    <button onClick={() => handleAiAction('humanize')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-purple-500/50 hover:from-purple-500/10 hover:to-purple-500/5 transition-all group">
+                      <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-500/20 transition-all"><UserCircle className="w-5 h-5 text-purple-400" /></div>
+                      <h4 className="text-white font-bold">Humanizar Texto</h4>
+                      <p className="text-gray-500 text-xs">Texto natural</p>
                     </button>
-                    <button 
-                      onClick={() => handleAiAction('mimic')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-purple-500/50 hover:from-purple-500/10 hover:to-purple-500/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-purple-500/20 transition-all">
-                        <PenTool className="w-4 h-4 text-purple-400" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-purple-400">Mimetizar</h4>
-                      <p className="text-gray-500 text-[10px]">Estilo de autor</p>
+                    <button onClick={() => handleAiAction('mimic')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-purple-500/50 hover:from-purple-500/10 hover:to-purple-500/5 transition-all group">
+                      <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-500/20 transition-all"><PenTool className="w-5 h-5 text-purple-400" /></div>
+                      <h4 className="text-white font-bold">Mimetizar Estilo</h4>
+                      <p className="text-gray-500 text-xs">Estilo de autor</p>
                     </button>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <ImageIcon className="w-3 h-3" /> Publicação
-                  </h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button 
-                      onClick={() => handleAiAction('cover')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-blue-500/50 hover:from-blue-500/10 hover:to-blue-500/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-blue-500/20 transition-all">
-                        <ImageIcon className="w-4 h-4 text-blue-400" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-blue-400">Capa</h4>
-                      <p className="text-gray-500 text-[10px]">Gerar capa</p>
+                  {/* Row 3: Publicação (Azul) */}
+                  <div className="col-span-1 space-y-3">
+                    <h3 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2 flex items-center gap-2 px-1">
+                      <ImageIcon className="w-3 h-3" /> Publicação
+                    </h3>
+                    <button onClick={() => handleAiAction('cover')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-blue-500/50 hover:from-blue-500/10 hover:to-blue-500/5 transition-all group">
+                      <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-500/20 transition-all"><ImageIcon className="w-5 h-5 text-blue-400" /></div>
+                      <h4 className="text-white font-bold">Capa e Contracapa</h4>
+                      <p className="text-gray-500 text-xs">Gerar capa</p>
                     </button>
-                    <button 
-                      onClick={() => handleAiAction('backcovertext')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-blue-500/50 hover:from-blue-500/10 hover:to-blue-500/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-blue-500/20 transition-all">
-                        <FileText className="w-4 h-4 text-blue-400" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-blue-400">Contracapa</h4>
-                      <p className="text-gray-500 text-[10px]">Blurb e bio</p>
+                    <button onClick={() => handleAiAction('backcovertext')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-blue-500/50 hover:from-blue-500/10 hover:to-blue-500/5 transition-all group">
+                      <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-500/20 transition-all"><FileText className="w-5 h-5 text-blue-400" /></div>
+                      <h4 className="text-white font-bold">Texto da Contracapa</h4>
+                      <p className="text-gray-500 text-xs">Blurb e bio</p>
                     </button>
-                    <button 
-                      onClick={() => handleAiAction('pagenumbers')}
-                      className="p-3 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-xl text-left hover:border-blue-500/50 hover:from-blue-500/10 hover:to-blue-500/5 transition-all group"
-                    >
-                      <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center mb-2 group-hover:bg-blue-500/20 transition-all">
-                        <History className="w-4 h-4 text-blue-400" />
-                      </div>
-                      <h4 className="text-white font-bold text-sm group-hover:text-blue-400">Paginação</h4>
-                      <p className="text-gray-500 text-[10px]">Organizar páginas</p>
+                    <button onClick={() => handleAiAction('pagenumbers')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-blue-500/50 hover:from-blue-500/10 hover:to-blue-500/5 transition-all group">
+                      <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-500/20 transition-all"><History className="w-5 h-5 text-blue-400" /></div>
+                      <h4 className="text-white font-bold">Números de Página</h4>
+                      <p className="text-gray-500 text-xs">Organizar páginas</p>
                     </button>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="text-xs font-bold text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <BookCheck className="w-3 h-3" /> Profissional
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button 
-                      onClick={() => handleAiAction('editorial')}
-                      className="p-4 bg-gradient-to-br from-[#D4AF37]/10 to-[#D4AF37]/5 border border-[#D4AF37]/30 rounded-xl text-left hover:border-[#D4AF37] hover:from-[#D4AF37]/20 hover:to-[#D4AF37]/10 transition-all group"
-                    >
-                      <div className="w-10 h-10 bg-[#D4AF37]/20 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#D4AF37]/30 transition-all">
-                        <BookCheck className="w-5 h-5 text-[#D4AF37]" />
-                      </div>
-                      <h4 className="text-[#D4AF37] font-bold">Edição Completa</h4>
-                      <p className="text-gray-400 text-xs">Revisão total + índice + dedicatória</p>
+                  {/* Row 4: Profissional (Verde) */}
+                  <div className="col-span-1 space-y-3">
+                    <h3 className="text-xs font-bold text-green-400 uppercase tracking-widest mb-2 flex items-center gap-2 px-1">
+                      <BookCheck className="w-3 h-3" /> Profissional
+                    </h3>
+                    <button onClick={() => handleAiAction('editorial')} className="w-full p-4 bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/30 rounded-2xl text-left hover:border-green-500 hover:from-green-500/20 hover:to-green-500/10 transition-all group">
+                      <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center mb-3 group-hover:bg-green-500/30 transition-all"><BookCheck className="w-5 h-5 text-green-400" /></div>
+                      <h4 className="text-green-400 font-bold">Edição Completa (Padrão Amazon)</h4>
+                      <p className="text-gray-500 text-xs">Revisão total + índice</p>
                     </button>
-                    <button 
-                      onClick={() => handleAiAction('manuscript')}
-                      className="p-4 bg-gradient-to-br from-[#D4AF37]/10 to-[#D4AF37]/5 border border-[#D4AF37]/30 rounded-xl text-left hover:border-[#D4AF37] hover:from-[#D4AF37]/20 hover:to-[#D4AF37]/10 transition-all group"
-                    >
-                      <div className="w-10 h-10 bg-[#D4AF37]/20 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#D4AF37]/30 transition-all">
-                        <FileText className="w-5 h-5 text-[#D4AF37]" />
-                      </div>
-                      <h4 className="text-[#D4AF37] font-bold">Formatar Manuscrito</h4>
-                      <p className="text-gray-400 text-xs">Padrões literários profissionais</p>
+                    <button onClick={() => handleAiAction('manuscript')} className="w-full p-4 bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/30 rounded-2xl text-left hover:border-green-500 hover:from-green-500/20 hover:to-green-500/10 transition-all group">
+                      <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center mb-3 group-hover:bg-green-500/30 transition-all"><FileText className="w-5 h-5 text-green-400" /></div>
+                      <h4 className="text-green-400 font-bold">Formatar Manuscrito (IA)</h4>
+                      <p className="text-gray-500 text-xs">Padrões profissionais</p>
+                    </button>
+                    <button onClick={() => handleAiAction('generateillustration')} className="w-full p-4 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl text-left hover:border-purple-500/50 hover:from-purple-500/10 hover:to-purple-500/5 transition-all group">
+                      <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-500/20 transition-all"><ImageIcon className="w-5 h-5 text-purple-400" /></div>
+                      <h4 className="text-white font-bold">Gerar Ilustração</h4>
+                      <p className="text-gray-500 text-xs">Imagens para o livro</p>
                     </button>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="text-xs font-bold text-green-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <FileDown className="w-3 h-3" /> Exportação & Publicação
-                  </h3>
-                  <div className="grid grid-cols-4 gap-4">
-                    <button 
-                      onClick={handleDownloadKdpPdf}
-                      className="p-5 bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-2xl text-center hover:border-green-500 hover:from-green-500/25 hover:to-green-500/10 transition-all group"
-                    >
-                      <div className="w-12 h-12 bg-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-green-500/30 transition-all">
-                        <FileDown className="w-6 h-6 text-green-400" />
-                      </div>
-                      <h4 className="text-green-400 font-bold text-sm">Exportar KDP</h4>
-                      <p className="text-gray-500 text-[10px] mt-1">PDF 6&quot;x9&quot; margens KDP</p>
-                    </button>
-                    <button 
-                      onClick={handleValidateKdp}
-                      disabled={isValidating || !content}
-                      className="p-5 bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-2xl text-center hover:border-green-500 hover:from-green-500/25 hover:to-green-500/10 transition-all group disabled:opacity-50"
-                    >
-                      <div className="w-12 h-12 bg-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-green-500/30 transition-all">
-                        {isValidating ? (
-                          <Loader2 className="w-6 h-6 text-green-400 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="w-6 h-6 text-green-400" />
-                        )}
-                      </div>
-                      <h4 className="text-green-400 font-bold text-sm">Validar KDP</h4>
-                      <p className="text-gray-500 text-[10px] mt-1">Verificar conformidade</p>
-                    </button>
-                    <button 
-                      onClick={handleDownloadManuscriptPdf}
-                      className="p-5 bg-gradient-to-br from-[#D4AF37]/15 to-[#D4AF37]/5 border border-[#D4AF37]/30 rounded-2xl text-center hover:border-[#D4AF37] hover:from-[#D4AF37]/25 hover:to-[#D4AF37]/10 transition-all group"
-                    >
-                      <div className="w-12 h-12 bg-[#D4AF37]/20 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-[#D4AF37]/30 transition-all">
-                        <FileText className="w-6 h-6 text-[#D4AF37]" />
-                      </div>
-                      <h4 className="text-[#D4AF37] font-bold text-sm">Exportar Manuscrito</h4>
-                      <p className="text-gray-500 text-[10px] mt-1">PDF formatado profissional</p>
-                    </button>
-                    <button 
-                      onClick={() => handleAiAction('editorial')}
-                      className="p-5 bg-gradient-to-br from-[#D4AF37]/15 to-[#D4AF37]/5 border border-[#D4AF37]/30 rounded-2xl text-center hover:border-[#D4AF37] hover:from-[#D4AF37]/25 hover:to-[#D4AF37]/10 transition-all group"
-                    >
-                      <div className="w-12 h-12 bg-[#D4AF37]/20 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:bg-[#D4AF37]/30 transition-all">
-                        <BookCheck className="w-6 h-6 text-[#D4AF37]" />
-                      </div>
-                      <h4 className="text-[#D4AF37] font-bold text-sm">Edição Completa</h4>
-                      <p className="text-gray-500 text-[10px] mt-1">Revisão + formatação</p>
-                    </button>
-                  </div>
-                  
-                  <div className="mt-4 p-4 bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-[#D4AF37]/20 rounded-xl flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-[#D4AF37]" />
-                      </div>
-                      <div>
-                        <h4 className="text-white font-bold text-sm">Publicar na Amazon</h4>
-                        <p className="text-gray-500 text-xs">Sua obra está pronta para o KDP</p>
+                  {/* Row 5: Exportação KDP (Verde Escuro) - Full Width */}
+                  <div className="col-span-4 mt-2">
+                    <h3 className="text-xs font-bold text-green-400 uppercase tracking-widest mb-4 flex items-center gap-2 px-1">
+                      <FileDown className="w-3 h-3" /> Exportação & Publicação KDP
+                    </h3>
+                    <div className="grid grid-cols-4 gap-4">
+                      <button onClick={handleDownloadKdpPdf} className="p-6 bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-2xl text-center hover:border-green-500 hover:from-green-500/25 hover:to-green-500/10 transition-all group">
+                        <div className="w-14 h-14 bg-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-green-500/30 transition-all"><FileDown className="w-7 h-7 text-green-400" /></div>
+                        <h4 className="text-green-400 font-bold text-lg">Exportar para KDP (PDF)</h4>
+                        <p className="text-gray-500 text-xs mt-1">PDF 6"x9" margens KDP</p>
+                      </button>
+                      <button onClick={handleValidateKdp} disabled={isValidating || !content} className="p-6 bg-gradient-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/30 rounded-2xl text-center hover:border-blue-500 hover:from-blue-500/25 hover:to-blue-500/10 transition-all group disabled:opacity-50">
+                        <div className="w-14 h-14 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-500/30 transition-all">{isValidating ? <Loader2 className="w-7 h-7 text-blue-400 animate-spin" /> : <CheckCircle2 className="w-7 h-7 text-blue-400" />}</div>
+                        <h4 className="text-blue-400 font-bold text-lg">Validar Conformidade KDP</h4>
+                        <p className="text-gray-500 text-xs mt-1">Verificar conformidade Amazon</p>
+                      </button>
+                      <button onClick={handleDownloadManuscriptPdf} className="p-6 bg-gradient-to-br from-[#D4AF37]/15 to-[#D4AF37]/5 border border-[#D4AF37]/30 rounded-2xl text-center hover:border-[#D4AF37] hover:from-[#D4AF37]/25 hover:to-[#D4AF37]/10 transition-all group">
+                        <div className="w-14 h-14 bg-[#D4AF37]/20 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-[#D4AF37]/30 transition-all"><FileText className="w-7 h-7 text-[#D4AF37]" /></div>
+                        <h4 className="text-[#D4AF37] font-bold text-lg">Exportar Manuscrito (PDF)</h4>
+                        <p className="text-gray-500 text-xs mt-1">PDF formatado profissional</p>
+                      </button>
+                      <div className="p-6 bg-gradient-to-r from-[#D4AF37]/10 to-green-500/10 border border-[#D4AF37]/20 rounded-2xl flex flex-col items-center justify-center text-center">
+                        <div className="w-14 h-14 bg-[#D4AF37]/20 rounded-2xl flex items-center justify-center mb-4"><Sparkles className="w-7 h-7 text-[#D4AF37]" /></div>
+                        <h4 className="text-white font-bold text-lg mb-1">Publicar na Amazon</h4>
+                        <p className="text-gray-500 text-xs mb-4">Sua obra está pronta para o KDP</p>
+                        <a href="https://kdp.amazon.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-[#D4AF37] text-black px-6 py-3 rounded-xl font-bold text-sm hover:bg-[#B8962E] transition-all">Ir para KDP <ExternalLink className="w-4 h-4" /></a>
                       </div>
                     </div>
-                    <a 
-                      href="https://kdp.amazon.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 bg-[#D4AF37] text-black px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#B8962E] transition-all"
-                    >
-                      Ir para KDP <ExternalLink className="w-4 h-4" />
-                    </a>
                   </div>
                 </div>
               </div>
 
-              {isProcessing && (
-                <div className="mt-6 pt-6 border-t border-white/10 flex items-center justify-center gap-3">
+              {/* Footer */}
+              {isAiLoading && (
+                <div className="px-8 py-4 border-t border-white/10 bg-[#0A0A0A] flex items-center justify-center gap-3">
                   <Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" />
                   <span className="text-gray-400">Processando sua solicitação...</span>
                 </div>

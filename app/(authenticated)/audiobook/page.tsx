@@ -80,6 +80,10 @@ export default function Audiobook() {
   const [currentBookId, setCurrentBookId] = useState<string | null>(null);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [generatedAudios, setGeneratedAudios] = useState<{id: string; title: string; url: string; voice: string; date: string}[]>([]);
+  const [currentAudioTitle, setCurrentAudioTitle] = useState('');
+  const [showAudioList, setShowAudioList] = useState(false);
   
   const [bookMetadata, setBookMetadata] = useState({
     title: '',
@@ -123,6 +127,19 @@ export default function Audiobook() {
     try {
       const url = await generateAudiobook(text, selectedVoice);
       setAudioUrl(url);
+      
+      const audioId = Date.now().toString();
+      const audioTitle = bookMetadata.title || fileName.replace('.pdf', '') || 'Áudio Sem Título';
+      setGeneratedAudios(prev => [...prev, {
+        id: audioId,
+        title: audioTitle,
+        url: url,
+        voice: selectedVoice,
+        date: new Date().toLocaleDateString()
+      }]);
+      setCurrentAudioTitle(audioTitle);
+      setShowAudioList(true);
+      
       toast.success('Audiobook gerado com sucesso!');
     } catch (error) {
       toast.error('Erro ao gerar áudio.');
@@ -598,6 +615,74 @@ export default function Audiobook() {
                 onEnded={() => setIsPlaying(false)}
                 className="hidden" 
               />
+            </motion.div>
+          )}
+
+          {generatedAudios.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-[#0A0A0A] border border-white/10 p-6 rounded-3xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-bold flex items-center gap-2">
+                  <Waves className="w-5 h-5 text-[#D4AF37]" />
+                  Playlist de Áudios
+                </h3>
+                <button 
+                  onClick={() => setShowAudioList(!showAudioList)}
+                  className="text-xs text-gray-500 hover:text-white"
+                >
+                  {showAudioList ? 'Ocultar' : 'Mostrar'} ({generatedAudios.length})
+                </button>
+              </div>
+              
+              {showAudioList && (
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {generatedAudios.map((audio) => (
+                    <div 
+                      key={audio.id}
+                      onClick={() => {
+                        setAudioUrl(audio.url);
+                        setCurrentAudioTitle(audio.title);
+                        setIsPlaying(false);
+                        toast.success(`Reproduzindo: ${audio.title}`);
+                      }}
+                      className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-xl cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center">
+                          <Play className="w-4 h-4 text-[#D4AF37]" />
+                        </div>
+                        <div>
+                          <p className="text-white text-sm font-medium">{audio.title}</p>
+                          <p className="text-gray-500 text-xs">{audio.voice} • {audio.date}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a 
+                          href={audio.url}
+                          download={`${audio.title}.mp3`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setGeneratedAudios(prev => prev.filter(a => a.id !== audio.id));
+                            toast.success('Áudio removido');
+                          }}
+                          className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           )}
         </div>
