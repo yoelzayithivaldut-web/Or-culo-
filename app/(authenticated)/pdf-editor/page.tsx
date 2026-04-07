@@ -46,7 +46,8 @@ import {
   ZoomOut,
   Palette,
   TextQuote,
-  Highlighter
+  Highlighter,
+  Lightbulb
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -188,57 +189,154 @@ export default function PdfEditorPage() {
 
     try {
       let result = '';
+      const currentText = editedText.trim();
 
       switch (action) {
         case 'improve':
           result = await generateWritingAssistance(
-            'Melhore a gramática, clareza e fluidez do seguinte texto:',
-            editedText
+            'Como editor profissional, melhore a gramática, clareza, pontuação e fluidez deste texto. Retorne APENAS o texto Melhorado, sem comentários extras.',
+            currentText
           );
-          setEditedText(result);
-          toast.success('Texto melhorado com sucesso!');
+          if (result && result.length > currentText.length * 0.3) {
+            setEditedText(result);
+            toast.success('Texto melhorado com sucesso!');
+          } else {
+            toast.error('A IA não conseguiu processar. Tente novamente.');
+          }
           break;
 
         case 'expand':
           result = await generateWritingAssistance(
-            'Expanda este texto adicionando mais detalhes e profundidade, mantendo o tom original:',
-            editedText
+            'Expanda este texto adicionando descrições mais ricas, diálogos e detalhes que tornem a narrativa mais envolvente. Retorne apenas o texto expandido.',
+            currentText
           );
-          setEditedText(result);
-          toast.success('Texto expandido com sucesso!');
+          if (result && result.length > currentText.length) {
+            setEditedText(result);
+            toast.success('Texto expandido com sucesso!');
+          } else {
+            toast.error('A IA não conseguiu processar. Tente novamente.');
+          }
           break;
 
         case 'summarize':
           result = await generateWritingAssistance(
-            'Resuma o seguinte texto em uma versão concisa mantendo os pontos principais:',
-            editedText
+            'Resuma este texto mantendo os pontos principais e a essência da história. Retorne apenas o resumo.',
+            currentText
           );
-          setEditedText(result);
-          toast.success('Texto resumido com sucesso!');
+          if (result && result.length < currentText.length) {
+            setEditedText(result);
+            toast.success('Texto resumido com sucesso!');
+          } else {
+            toast.error('A IA não conseguiu processar. Tente novamente.');
+          }
           break;
 
         case 'humanize':
-          result = await humanizeText(editedText);
-          setEditedText(result);
-          toast.success('Texto humanizado com sucesso!');
+          result = await humanizeText(currentText);
+          if (result && result !== currentText) {
+            setEditedText(result);
+            toast.success('Texto humanizado com sucesso!');
+          } else {
+            toast.error('A IA não conseguiu processar. Tente novamente.');
+          }
           break;
 
         case 'editorial':
-          result = await completeEditorialReview(editedText, fileName.replace('.pdf', ''));
-          setEditedText(result);
-          toast.success('Edição editorial completa aplicada!');
+          result = await completeEditorialReview(currentText, fileName.replace('.pdf', '') || 'Documento');
+          if (result && result !== currentText) {
+            setEditedText(result);
+            toast.success('Edição editorial completa aplicada!');
+          } else {
+            toast.error('A IA não conseguiu processar. Tente novamente.');
+          }
           break;
 
         case 'translate-en':
-          result = await translateText(editedText, 'Inglês');
-          setEditedText(result);
-          toast.success('Traduzido para Inglês!');
+          result = await translateText(currentText, 'Inglês');
+          if (result) {
+            setEditedText(result);
+            toast.success('Traduzido para Inglês!');
+          }
           break;
 
         case 'translate-es':
-          result = await translateText(editedText, 'Espanhol');
-          setEditedText(result);
-          toast.success('Traduzido para Espanhol!');
+          result = await translateText(currentText, 'Espanhol');
+          if (result) {
+            setEditedText(result);
+            toast.success('Traduzido para Espanhol!');
+          }
+          break;
+
+        case 'ideas':
+          result = await generateWritingAssistance(
+            `Analise este texto e sugira 5 ideias criativas para melhorá-lo. Para cada ideia, explique brevemente o que pode ser mudado e como afetaria a história.`,
+            currentText
+          );
+          if (result) {
+            toast.success('Sugestões geradas!');
+            alert('💡 SUGESTÕES PARA MELHORAR SEU TEXTO:\n\n' + result);
+          }
+          break;
+
+        case 'character':
+          result = await generateWritingAssistance(
+            'Analise os personagens deste texto e forneça uma descrição detalhada de cada um, incluindo personalidade, aparência e motivations.',
+            currentText
+          );
+          if (result) {
+            toast.success('Análise de personagens gerada!');
+            alert('🎭 PERSONAGENS:\n\n' + result);
+          }
+          break;
+
+        case 'critique':
+          result = await generateWritingAssistance(
+            'Como editor profissional, analise este texto criticamente e forneça um relatório detalhado sobre pontos fortes, pontos fracos, sugestões de melhoria e recomendações de estrutura.',
+            currentText
+          );
+          if (result) {
+            toast.success('Crítica profissional gerada!');
+            alert('📝 ANÁLISE CRÍTICA:\n\n' + result);
+          }
+          break;
+
+        case 'dialogue':
+          result = await generateWritingAssistance(
+            'Adicione diálogos aos trechos que estão apenas narrados, tornando a história mais dinâmica e envolvente. Retorne o texto completo com diálogos incorporados.',
+            currentText
+          );
+          if (result && result.length > currentText.length) {
+            setEditedText(result);
+            toast.success('Diálogos adicionados!');
+          } else {
+            toast.error('A IA não conseguiu processar. Tente novamente.');
+          }
+          break;
+
+        case 'scene':
+          result = await generateWritingAssistance(
+            'Adicione descrições de cenas e ambiente aos momentos chave da narrativa. Torne o cenário mais rico e imersivo. Retorne o texto completo melhorado.',
+            currentText
+          );
+          if (result && result.length > currentText.length) {
+            setEditedText(result);
+            toast.success('Cenas detalhadas!');
+          } else {
+            toast.error('A IA não conseguiu processar. Tente novamente.');
+          }
+          break;
+
+        case 'pace':
+          result = await generateWritingAssistance(
+            'Analise o ritmo da narrativa e sugira ajustes para tornar a história mais dinâmica nos momentos apropriados e mais contemplativos onde necessário. Retorne o texto ajustado.',
+            currentText
+          );
+          if (result && result !== currentText) {
+            setEditedText(result);
+            toast.success('Ritmo ajustado!');
+          } else {
+            toast.error('A IA não conseguiu processar. Tente novamente.');
+          }
           break;
 
         default:
@@ -246,7 +344,7 @@ export default function PdfEditorPage() {
       }
     } catch (error) {
       console.error('AI action error:', error);
-      toast.error('Erro ao processar com IA.');
+      toast.error('Erro ao processar com IA. Tente novamente.');
     } finally {
       setIsProcessing(false);
     }
@@ -1026,6 +1124,66 @@ export default function PdfEditorPage() {
                   <span className="text-lg font-bold text-[#D4AF37] mb-2 block">ES</span>
                   <h4 className="text-white font-bold group-hover:text-[#D4AF37]">Traduzir</h4>
                   <p className="text-gray-500 text-xs">Para Espanhol</p>
+                </button>
+
+                <button 
+                  onClick={() => handleAiAction('ideas')}
+                  disabled={isProcessing}
+                  className="p-4 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group disabled:opacity-50"
+                >
+                  <Lightbulb className="w-6 h-6 text-purple-400 mb-2" />
+                  <h4 className="text-white font-bold group-hover:text-purple-400">Ideias Criativas</h4>
+                  <p className="text-gray-500 text-xs">Sugestões para melhorar</p>
+                </button>
+
+                <button 
+                  onClick={() => handleAiAction('character')}
+                  disabled={isProcessing}
+                  className="p-4 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition-all group disabled:opacity-50"
+                >
+                  <User className="w-6 h-6 text-[#D4AF37] mb-2" />
+                  <h4 className="text-white font-bold group-hover:text-[#D4AF37]">Personagens</h4>
+                  <p className="text-gray-500 text-xs">Descrições detalhadas</p>
+                </button>
+
+                <button 
+                  onClick={() => handleAiAction('critique')}
+                  disabled={isProcessing}
+                  className="p-4 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-red-500/50 hover:bg-red-500/5 transition-all group disabled:opacity-50"
+                >
+                  <FileCheck className="w-6 h-6 text-red-400 mb-2" />
+                  <h4 className="text-white font-bold group-hover:text-red-400">Análise Crítica</h4>
+                  <p className="text-gray-500 text-xs">Pontos fortes e fracos</p>
+                </button>
+
+                <button 
+                  onClick={() => handleAiAction('dialogue')}
+                  disabled={isProcessing}
+                  className="p-4 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition-all group disabled:opacity-50"
+                >
+                  <MessageCircle className="w-6 h-6 text-[#D4AF37] mb-2" />
+                  <h4 className="text-white font-bold group-hover:text-[#D4AF37]">Adicionar Diálogos</h4>
+                  <p className="text-gray-500 text-xs">Torna mais dinâmico</p>
+                </button>
+
+                <button 
+                  onClick={() => handleAiAction('scene')}
+                  disabled={isProcessing}
+                  className="p-4 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition-all group disabled:opacity-50"
+                >
+                  <Sparkles className="w-6 h-6 text-[#D4AF37] mb-2" />
+                  <h4 className="text-white font-bold group-hover:text-[#D4AF37]">Cenas Detalhadas</h4>
+                  <p className="text-gray-500 text-xs">Descrições de ambiente</p>
+                </button>
+
+                <button 
+                  onClick={() => handleAiAction('pace')}
+                  disabled={isProcessing}
+                  className="p-4 bg-white/5 border border-white/10 rounded-2xl text-left hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition-all group disabled:opacity-50"
+                >
+                  <Settings className="w-6 h-6 text-[#D4AF37] mb-2" />
+                  <h4 className="text-white font-bold group-hover:text-[#D4AF37]">Ajustar Ritmo</h4>
+                  <p className="text-gray-500 text-xs">Melhora o pacing</p>
                 </button>
               </div>
 
