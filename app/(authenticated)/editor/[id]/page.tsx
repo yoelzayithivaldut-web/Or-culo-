@@ -617,7 +617,10 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
             {isSaving ? 'Salvando...' : (content === lastSavedContent ? 'Salvo' : 'Salvar Agora')}
           </button>
           <button 
-            onClick={() => setShowAiMenu(true)}
+            onClick={() => {
+              console.log('IA Editor button clicked, opening menu...');
+              setShowAiMenu(true);
+            }}
             className="flex items-center gap-2 bg-[#D4AF37] text-black px-6 py-3 rounded-2xl font-bold hover:bg-[#B8962E] transition-all shadow-[0_10px_20px_rgba(212,175,55,0.2)]"
           >
             <Sparkles className="w-5 h-5" />
