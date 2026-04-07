@@ -18,18 +18,22 @@ import {
   Save,
   Trash2,
   BookPlus,
-  FileDown,
   Edit3,
   User,
   BookOpen,
   X,
-  FileSignature
+  FileSignature,
+  RefreshCw,
+  CheckCircle,
+  AlertCircle,
+  VolumeX,
+  Music
 } from 'lucide-react';
-import { generateAudiobook } from '@/services/gemini';
-import { supabase } from '@/lib/supabase';
 import { supabaseService } from '@/services/supabaseService';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useAudioService, AVAILABLE_VOICES } from '@/services/useAudioService';
+import { useAuth } from '@/components/AuthProvider';
 
 let pdfjsLib: any = null;
 let pdfjsLoaded = false;
@@ -55,24 +59,11 @@ const loadPdfJs = async (): Promise<any> => {
   });
 };
 
-const voices = [
-  { id: 'Kore', name: 'Kore', type: 'Feminina', desc: 'Calma e profissional' },
-  { id: 'Fenrir', name: 'Fenrir', type: 'Masculina', desc: 'Profunda e narrativa' },
-  { id: 'Puck', name: 'Puck', type: 'Feminina', desc: 'Energética e jovem' },
-  { id: 'Charon', name: 'Charon', type: 'Masculina', desc: 'Séria e autoritária' },
-  { id: 'Zephyr', name: 'Zephyr', type: 'Neutra', desc: 'Suave e etérea' },
-];
-
-import { useAuth } from '@/components/AuthProvider';
-import { jsPDF } from 'jspdf';
-
 export default function Audiobook() {
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [selectedVoice, setSelectedVoice] = useState('Kore');
   const [isLoading, setIsLoading] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
   const [selectedBookId, setSelectedBookId] = useState('');
   const [fileName, setFileName] = useState('');
@@ -80,10 +71,7 @@ export default function Audiobook() {
   const [currentBookId, setCurrentBookId] = useState<string | null>(null);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const [generatedAudios, setGeneratedAudios] = useState<{id: string; title: string; url: string; voice: string; date: string}[]>([]);
-  const [currentAudioTitle, setCurrentAudioTitle] = useState('');
-  const [showAudioList, setShowAudioList] = useState(false);
+  const [showAudioList, setShowAudioList] = useState(true);
   
   const [bookMetadata, setBookMetadata] = useState({
     title: '',
@@ -94,13 +82,34 @@ export default function Audiobook() {
     subtitle: ''
   });
 
-  const audioRef = useRef<HTMLAudioElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    isGenerating,
+    isPlaying,
+    currentAudioUrl,
+    currentAudioTitle,
+    generatedAudios,
+    error,
+    audioProvider,
+    audioRef,
+    generateAudio,
+    playAudio,
+    pauseAudio,
+    stopAudio,
+    downloadAudio,
+    addToPlaylist,
+    removeFromPlaylist,
+    clearPlaylist,
+    setCurrentAudioUrl,
+    setCurrentAudioTitle,
+    setIsPlaying,
+  } = useAudioService();
 
   useEffect(() => {
     if (user) {
       const unsubscribe = supabaseService.subscribeToCollection(
-        'books',
+        'books', 
         { column: 'user_id', value: user.id },
         (data) => {
           setBooks(data || []);
@@ -121,28 +130,26 @@ export default function Audiobook() {
   };
 
   const handleGenerate = async () => {
-    if (!text) return;
+    if (!text.trim()) {
+      toast.error('Por favor, insira um texto para converter em áudio.');
+      return;
+    }
+
     setIsLoading(true);
-    setAudioUrl(null);
     try {
-      const url = await generateAudiobook(text, selectedVoice);
-      setAudioUrl(url);
+      const { url, provider, isDownloadable } = await generateAudio(text, selectedVoice);
       
-      const audioId = Date.now().toString();
       const audioTitle = bookMetadata.title || fileName.replace('.pdf', '') || 'Áudio Sem Título';
-      setGeneratedAudios(prev => [...prev, {
-        id: audioId,
-        title: audioTitle,
-        url: url,
-        voice: selectedVoice,
-        date: new Date().toLocaleDateString()
-      }]);
-      setCurrentAudioTitle(audioTitle);
-      setShowAudioList(true);
+      addToPlaylist(audioTitle, url, selectedVoice, provider, isDownloadable);
       
-      toast.success('Audiobook gerado com sucesso!');
-    } catch (error) {
-      toast.error('Erro ao gerar áudio.');
+      if (url !== 'browser-speech') {
+        toast.success(`Áudio gerado com sucesso via ${provider}!`);
+      } else {
+        toast.success('Áudio pronto! Use o botão Ouvir para reproduzir.');
+      }
+    } catch (err) {
+      console.error('Erro ao gerar áudio:', err);
+      toast.error('Erro ao gerar áudio. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -248,7 +255,8 @@ export default function Audiobook() {
     setText('');
     setFileName('');
     setCurrentBookId(null);
-    setAudioUrl(null);
+    setCurrentAudioUrl(null);
+    clearPlaylist();
     setBookMetadata({
       title: '',
       author: user?.display_name || user?.email?.split('@')[0] || 'Autor Desconhecido',
@@ -260,147 +268,12 @@ export default function Audiobook() {
     setShowMetadataModal(true);
   };
 
-  const handleDownloadKdpPdf = () => {
-    const pageWidthMm = 152.4;
-    const pageHeightMm = 228.6;
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: [pageWidthMm, pageHeightMm]
-    });
-
-    const title = bookMetadata.title || fileName.replace('.pdf', '') || 'Obra Sem Título';
-    const author = bookMetadata.author || 'Autor Desconhecido';
-    
-    const marginInner = 12.7;
-    const marginOuter = 6.35;
-    const marginTop = 6.35;
-    const marginBottom = 6.35;
-    const lineHeight = 6;
-    const fontSizeBody = 11;
-    const fontSizeChapter = 16;
-    const fontSizeSubChapter = 14;
-    
-    const getMargins = (pageNum: number) => ({
-      left: pageNum % 2 === 0 ? marginInner : marginOuter,
-      right: pageNum % 2 === 0 ? marginOuter : marginInner
-    });
-
-    const isChapterTitle = (line: string): 'chapter' | 'subchapter' | 'none' => {
-      const trimmed = line.trim();
-      if (/^#{1,3}\s/.test(trimmed)) return 'chapter';
-      if (/^(CAP[ií]TULO|Chapter)\s*\.?\s*[IVXLC0-9]+/i.test(trimmed)) return 'chapter';
-      if (/^[IVXLC]+[.\s]/.test(trimmed) && trimmed.length < 30) return 'chapter';
-      if (/^\d+[.\)]\s/.test(trimmed) && trimmed.length < 40) return 'subchapter';
-      return 'none';
-    };
-
-    const parseContent = (text: string) => {
-      const lines = text.split('\n');
-      const parsed: { type: string; text: string }[] = [];
-      
-      lines.forEach(line => {
-        const chapterType = isChapterTitle(line);
-        if (chapterType === 'chapter') {
-          parsed.push({ type: 'chapter', text: line.replace(/^#+\s*/, '').trim() });
-        } else if (chapterType === 'subchapter') {
-          parsed.push({ type: 'subchapter', text: line.trim() });
-        } else if (line.trim()) {
-          parsed.push({ type: 'body', text: line.trim() });
-        } else {
-          parsed.push({ type: 'blank', text: '' });
-        }
-      });
-      
-      return parsed;
-    };
-
-    const wrapText = (text: string, contentWidth: number, currentFontSize: number): string[] => {
-      doc.setFontSize(currentFontSize);
-      return doc.splitTextToSize(text, contentWidth);
-    };
-
-    let pageNum = 1;
-    const parsedContent = parseContent(text);
-    let currentY = marginTop;
-    
-    const addPage = () => {
-      doc.addPage();
-      pageNum++;
-      currentY = marginTop;
-    };
-
-    doc.setFont('times', 'normal');
-    
-    doc.setFontSize(24);
-    doc.setFont('times', 'bold');
-    doc.text(title.toUpperCase(), pageWidthMm / 2, pageHeightMm / 2 - 10, { align: 'center' });
-    doc.setFontSize(14);
-    doc.setFont('times', 'normal');
-    doc.text(`por ${author}`, pageWidthMm / 2, pageHeightMm / 2 + 10, { align: 'center' });
-    
-    doc.setFontSize(9);
-    doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
-    addPage();
-    
-    parsedContent.forEach((item) => {
-      if (item.type === 'blank') {
-        currentY += lineHeight * 0.8;
-        return;
-      }
-      
-      const margins = getMargins(pageNum);
-      const contentWidth = pageWidthMm - margins.left - margins.right;
-      
-      let fontSize = fontSizeBody;
-      if (item.type === 'chapter') fontSize = fontSizeChapter;
-      if (item.type === 'subchapter') fontSize = fontSizeSubChapter;
-      
-      const wrappedLines = wrapText(item.text, contentWidth, fontSize);
-      
-      wrappedLines.forEach((line: string) => {
-        if (currentY + lineHeight > pageHeightMm - marginBottom) {
-          doc.setFontSize(9);
-          doc.setFont('times', 'normal');
-          doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
-          addPage();
-        }
-
-        doc.setFontSize(fontSize);
-        if (item.type === 'chapter' && wrappedLines.indexOf(line) === 0) {
-          doc.setFont('times', 'bold');
-          currentY += lineHeight * 1.5;
-        } else if (item.type === 'subchapter' && wrappedLines.indexOf(line) === 0) {
-          doc.setFont('times', 'bold');
-          currentY += lineHeight * 1.3;
-        } else {
-          doc.setFont('times', 'normal');
-          currentY += lineHeight;
-        }
-        
-        doc.text(line, margins.left, currentY);
-      });
-
-      if (item.type === 'chapter') {
-        currentY += lineHeight * 1.2;
-      } else {
-        currentY += lineHeight * 0.5;
-      }
-    });
-
-    doc.setFontSize(9);
-    doc.setFont('times', 'normal');
-    doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
-
-    doc.save(`${title.replace(/\s+/g, '_')}_KDP_6x9.pdf`);
-    toast.success('PDF formatado para KDP exportado com sucesso!');
-  };
-
   const handleNewProject = () => {
     setText('');
     setFileName('');
     setCurrentBookId(null);
-    setAudioUrl(null);
+    setCurrentAudioUrl(null);
+    clearPlaylist();
     setBookMetadata({
       title: '',
       author: user?.display_name || user?.email?.split('@')[0] || 'Autor Desconhecido',
@@ -412,14 +285,20 @@ export default function Audiobook() {
   };
 
   const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+    if (!currentAudioUrl) return;
+
+    if (isPlaying) {
+      pauseAudio();
+    } else {
+      playAudio(currentAudioUrl);
     }
+  };
+
+  const handleAudioSelect = (audio: any) => {
+    setCurrentAudioUrl(audio.url);
+    setCurrentAudioTitle(audio.title);
+    setIsPlaying(false);
+    toast.success(`Reproduzindo: ${audio.title}`);
   };
 
   return (
@@ -427,10 +306,10 @@ export default function Audiobook() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-bold text-white mb-2">Gerador de Audiobook</h1>
-          <p className="text-gray-400">Transforme seus manuscritos em áudio de alta fidelidade com vozes naturais.</p>
+          <p className="text-gray-400">Transforme seus manuscritos em áudio de alta fidelidade.</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={handleCreateNewBook}
             className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold text-sm transition-all border border-white/10"
@@ -462,13 +341,6 @@ export default function Audiobook() {
                 title="Novo Projeto"
               >
                 <Trash2 className="w-5 h-5" />
-              </button>
-              <button
-                onClick={handleDownloadKdpPdf}
-                className="p-3 hover:bg-white/5 rounded-xl text-green-400 hover:text-green-300 transition-all"
-                title="Exportar KDP (6x9)"
-              >
-                <BookOpen className="w-5 h-5" />
               </button>
             </>
           )}
@@ -515,8 +387,9 @@ export default function Audiobook() {
           <div className="bg-[#0A0A0A] border border-white/10 rounded-3xl h-[500px] relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 left-0 right-0 p-4 bg-white/5 border-b border-white/10 flex items-center justify-between">
               <span className="text-xs text-gray-500 uppercase tracking-widest font-bold">Texto para Conversão</span>
-              <div className="text-xs text-gray-500">
-                {text.length} / 5000 caracteres
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>{text.length} / 5000 caracteres</span>
+                {isGenerating && <Loader2 className="w-3 h-3 animate-spin" />}
               </div>
             </div>
             <textarea
@@ -540,78 +413,109 @@ export default function Audiobook() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-[#0A0A0A] border border-white/10 p-8 rounded-3xl">
-            <h3 className="text-white font-bold mb-6 flex items-center gap-2">
+          <div className="bg-[#0A0A0A] border border-white/10 p-6 rounded-3xl">
+            <h3 className="text-white font-bold mb-4 flex items-center gap-2">
               <Settings2 className="w-5 h-5 text-[#D4AF37]" />
               Configurações de Voz
             </h3>
-            <div className="space-y-3">
-              {voices.map(voice => (
+            <div className="space-y-2">
+              {AVAILABLE_VOICES.map(voice => (
                 <button
                   key={voice.id}
                   onClick={() => setSelectedVoice(voice.id)}
                   className={cn(
-                    "w-full p-4 rounded-2xl border transition-all text-left group",
+                    "w-full p-3 rounded-xl border transition-all text-left group",
                     selectedVoice === voice.id 
                       ? "bg-[#D4AF37]/10 border-[#D4AF37] text-white" 
                       : "bg-white/5 border-white/5 text-gray-400 hover:border-white/20"
                   )}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={cn("font-bold", selectedVoice === voice.id ? "text-[#D4AF37]" : "text-white")}>
+                  <div className="flex items-center justify-between">
+                    <span className={cn("font-bold text-sm", selectedVoice === voice.id ? "text-[#D4AF37]" : "text-white")}>
                       {voice.name}
                     </span>
-                    <span className="text-[10px] uppercase tracking-widest bg-white/10 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] uppercase tracking-wider bg-white/10 px-2 py-0.5 rounded">
                       {voice.type}
                     </span>
                   </div>
-                  <p className="text-xs opacity-60">{voice.desc}</p>
+                  <p className="text-xs opacity-60 mt-1">{voice.description}</p>
                 </button>
               ))}
             </div>
           </div>
 
-          {audioUrl && (
+          {currentAudioUrl && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-[#D4AF37] p-8 rounded-3xl text-black shadow-[0_20px_50px_rgba(212,175,55,0.3)]"
+              className="bg-gradient-to-br from-[#D4AF37] to-[#B8962E] p-6 rounded-3xl text-black shadow-2xl"
             >
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center">
-                  <Waves className="text-[#D4AF37] w-6 h-6" />
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-black/20 rounded-2xl flex items-center justify-center">
+                  <Waves className="w-6 h-6" />
                 </div>
-                <div>
-                  <h4 className="font-bold text-lg">Áudio Gerado</h4>
-                  <p className="text-black/60 text-xs uppercase tracking-widest font-bold">Pronto para ouvir</p>
+                <div className="flex-1">
+                  <h4 className="font-bold text-lg">{currentAudioTitle || 'Áudio Gerado'}</h4>
+                  <p className="text-black/60 text-xs font-medium uppercase tracking-wider">
+                    {audioProvider} • Pronto para ouvir
+                  </p>
+                </div>
+                {isPlaying && (
+                  <div className="flex gap-1">
+                    {[1,2,3].map(i => (
+                      <motion.div
+                        key={i}
+                        animate={{ scaleY: [0.5, 1, 0.5] }}
+                        transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
+                        className="w-1 h-4 bg-black/60 rounded-full"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 mb-4">
+                <button 
+                  onClick={togglePlay}
+                  className="w-12 h-12 bg-black text-[#D4AF37] rounded-full flex items-center justify-center hover:scale-105 transition-all"
+                >
+                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                </button>
+                <div className="flex-1 h-2 bg-black/20 rounded-full overflow-hidden">
+                  <motion.div 
+                    animate={{ width: isPlaying ? '100%' : '30%' }}
+                    transition={{ duration: isPlaying ? 2 : 0.5, repeat: isPlaying ? Infinity : 0, ease: "linear" }}
+                    className="h-full bg-black"
+                  />
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => currentAudioUrl !== 'browser-speech' && downloadAudio(currentAudioUrl, currentAudioTitle)}
+                  disabled={currentAudioUrl === 'browser-speech'}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all",
+                    currentAudioUrl === 'browser-speech' 
+                      ? "bg-black/10 text-black/40 cursor-not-allowed"
+                      : "bg-black/20 hover:bg-black/30 text-black"
+                  )}
+                >
+                  <Download className="w-4 h-4" />
+                  Baixar
+                </button>
                 <button 
                   onClick={togglePlay}
-                  className="w-14 h-14 bg-black text-[#D4AF37] rounded-full flex items-center justify-center hover:scale-105 transition-all"
+                  className="flex items-center justify-center gap-2 bg-black text-[#D4AF37] px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-black/80 transition-all"
                 >
-                  {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-1" />}
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  {isPlaying ? 'Pausar' : 'Ouvir'}
                 </button>
-                <div className="flex-1 h-1 bg-black/20 rounded-full overflow-hidden">
-                  <motion.div 
-                    animate={{ x: isPlaying ? ['0%', '100%'] : '0%' }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                    className="w-1/3 h-full bg-black"
-                  />
-                </div>
-                <a 
-                  href={audioUrl} 
-                  download="audiobook.mp3"
-                  className="p-3 bg-black/10 hover:bg-black/20 rounded-xl transition-all"
-                >
-                  <Download className="w-5 h-5" />
-                </a>
               </div>
+              
               <audio 
                 ref={audioRef} 
-                src={audioUrl} 
+                src={currentAudioUrl !== 'browser-speech' ? currentAudioUrl : undefined}
                 onEnded={() => setIsPlaying(false)}
                 className="hidden" 
               />
@@ -622,56 +526,76 @@ export default function Audiobook() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-[#0A0A0A] border border-white/10 p-6 rounded-3xl"
+              className="bg-[#0A0A0A] border border-white/10 p-5 rounded-3xl"
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-bold flex items-center gap-2">
-                  <Waves className="w-5 h-5 text-[#D4AF37]" />
-                  Playlist de Áudios
+                  <Music className="w-5 h-5 text-[#D4AF37]" />
+                  Playlist ({generatedAudios.length})
                 </h3>
-                <button 
-                  onClick={() => setShowAudioList(!showAudioList)}
-                  className="text-xs text-gray-500 hover:text-white"
-                >
-                  {showAudioList ? 'Ocultar' : 'Mostrar'} ({generatedAudios.length})
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={clearPlaylist}
+                    className="text-xs text-gray-500 hover:text-red-400"
+                  >
+                    Limpar
+                  </button>
+                  <button 
+                    onClick={() => setShowAudioList(!showAudioList)}
+                    className="text-xs text-gray-500 hover:text-white"
+                  >
+                    {showAudioList ? 'Ocultar' : 'Mostrar'}
+                  </button>
+                </div>
               </div>
               
               {showAudioList && (
-                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                <div className="space-y-2 max-h-[250px] overflow-y-auto">
                   {generatedAudios.map((audio) => (
                     <div 
                       key={audio.id}
-                      onClick={() => {
-                        setAudioUrl(audio.url);
-                        setCurrentAudioTitle(audio.title);
-                        setIsPlaying(false);
-                        toast.success(`Reproduzindo: ${audio.title}`);
-                      }}
-                      className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 rounded-xl cursor-pointer transition-all group"
+                      onClick={() => handleAudioSelect(audio)}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all group",
+                        currentAudioUrl === audio.url 
+                          ? "bg-[#D4AF37]/10 border border-[#D4AF37]/30" 
+                          : "bg-white/5 hover:bg-white/10 border border-transparent"
+                      )}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-[#D4AF37]/20 rounded-lg flex items-center justify-center">
-                          <Play className="w-4 h-4 text-[#D4AF37]" />
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                          currentAudioUrl === audio.url ? "bg-[#D4AF37] text-black" : "bg-[#D4AF37]/20 text-[#D4AF37]"
+                        )}>
+                          {currentAudioUrl === audio.url && isPlaying ? (
+                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.5, repeat: Infinity }}>
+                              <Volume2 className="w-4 h-4" />
+                            </motion.div>
+                          ) : (
+                            <Play className="w-4 h-4" />
+                          )}
                         </div>
-                        <div>
-                          <p className="text-white text-sm font-medium">{audio.title}</p>
-                          <p className="text-gray-500 text-xs">{audio.voice} • {audio.date}</p>
+                        <div className="min-w-0">
+                          <p className="text-white text-sm font-medium truncate">{audio.title}</p>
+                          <p className="text-gray-500 text-xs">{audio.voice} • {audio.provider}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <a 
-                          href={audio.url}
-                          download={`${audio.title}.mp3`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white"
-                        >
-                          <Download className="w-4 h-4" />
-                        </a>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {audio.url !== 'browser-speech' && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadAudio(audio.url, audio.title);
+                            }}
+                            className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        )}
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
-                            setGeneratedAudios(prev => prev.filter(a => a.id !== audio.id));
+                            removeFromPlaylist(audio.id);
                             toast.success('Áudio removido');
                           }}
                           className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-red-500"
@@ -724,9 +648,7 @@ export default function Audiobook() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
-                    <FileSignature className="w-4 h-4 inline mr-1" /> Título do Livro
-                  </label>
+                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">Título do Livro</label>
                   <input
                     type="text"
                     value={bookMetadata.title}
@@ -737,9 +659,7 @@ export default function Audiobook() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
-                    <User className="w-4 h-4 inline mr-1" /> Autor
-                  </label>
+                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">Autor</label>
                   <input
                     type="text"
                     value={bookMetadata.author}
@@ -751,9 +671,7 @@ export default function Audiobook() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
-                      Gênero
-                    </label>
+                    <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">Gênero</label>
                     <select
                       value={bookMetadata.genre}
                       onChange={(e) => setBookMetadata({ ...bookMetadata, genre: e.target.value })}
@@ -771,14 +689,11 @@ export default function Audiobook() {
                       <option value="Autoajuda" className="bg-[#0A0A0A]">Autoajuda</option>
                       <option value="Infantil" className="bg-[#0A0A0A]">Infantil</option>
                       <option value="Poesia" className="bg-[#0A0A0A]">Poesia</option>
-                      <option value="Outro" className="bg-[#0A0A0A]">Outro</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
-                      Idioma
-                    </label>
+                    <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">Idioma</label>
                     <select
                       value={bookMetadata.language}
                       onChange={(e) => setBookMetadata({ ...bookMetadata, language: e.target.value })}
@@ -792,9 +707,7 @@ export default function Audiobook() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
-                    Subtítulo (Opcional)
-                  </label>
+                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">Subtítulo (Opcional)</label>
                   <input
                     type="text"
                     value={bookMetadata.subtitle}
@@ -805,9 +718,7 @@ export default function Audiobook() {
                 </div>
 
                 <div>
-                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
-                    Sinopse (Opcional)
-                  </label>
+                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">Sinopse (Opcional)</label>
                   <textarea
                     value={bookMetadata.synopsis}
                     onChange={(e) => setBookMetadata({ ...bookMetadata, synopsis: e.target.value })}

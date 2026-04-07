@@ -368,37 +368,125 @@ function generatePlaceholderIllustration(prompt: string): string {
   return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
 
-export async function generateAudiobook(text: string, voice: string = "Kore") {
-  if (useGemini && ai) {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp-tts",
-      contents: [{ parts: [{ text }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: voice },
-          },
-        },
-      },
+const VOICE_MAP: { [key: string]: string } = {
+  'Kore': 'pt-BR-Standard-A',
+  'Fenrir': 'pt-BR-Standard-B',
+  'Puck': 'pt-BR-Standard-C',
+  'Charon': 'pt-BR-Standard-D',
+  'Zephyr': 'pt-BR-Wavenet-A',
+};
+
+async function generateAudioWithGoogleCloud(text: string, voiceId: string): Promise<string | null> {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_CLOUD_API_KEY || process.env.GOOGLE_CLOUD_API_KEY;
+  if (!apiKey) return null;
+
+  const voiceName = VOICE_MAP[voiceId] || 'pt-BR-Standard-A';
+  
+  try {
+    const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: { text },
+        voice: { languageCode: 'pt-BR', name: voiceName },
+        audioConfig: { audioEncoding: 'MP3', speakingRate: 1.0, pitch: 0 },
+      }),
     });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (base64Audio) {
-      const binaryString = atob(base64Audio);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
+    if (!response.ok) {
+      console.error('Google Cloud TTS error:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    if (data.audioContent) {
+      return `data:audio/mp3;base64,${data.audioContent}`;
+    }
+  } catch (error) {
+    console.error('Google Cloud TTS error:', error);
+  }
+  return null;
+}
 
-      const wavHeader = createWavHeader(len, 24000);
-      const wavBlob = new Blob([wavHeader, bytes], { type: 'audio/wav' });
-      return URL.createObjectURL(wavBlob);
+async function generateAudioWithVoiceRSS(text: string, voice: string): Promise<string | null> {
+  const apiKey = process.env.VOICERSS_API_KEY || process.env.NEXT_PUBLIC_VOICERSS_API_KEY;
+  if (!apiKey) return null;
+  
+  const voiceMap: { [key: string]: string } = {
+    'Kore': 'pt-br',
+    'Fenrir': 'pt-br',
+    'Puck': 'pt-br',
+    'Charon': 'pt-br',
+    'Zephyr': 'pt-br',
+  };
+  
+  const lang = voiceMap[voice] || 'pt-br';
+  
+  try {
+    const response = await fetch(`https://api.voicerss.org/?key=${apiKey}&src=${encodeURIComponent(text)}&hl=${lang}&r=0&c=MP3`);
+    if (response.ok) {
+      const arrayBuffer = await response.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: 'audio/mp3' });
+      return URL.createObjectURL(blob);
+    }
+  } catch (error) {
+    console.error('VoiceRSS error:', error);
+  }
+  return null;
+}
+
+export async function generateAudiobook(text: string, voice: string = "Kore"): Promise<string> {
+  console.log('Oráculo: Gerando audiobook com voz:', voice, 'Texto length:', text.length);
+  
+  if (useGemini && ai) {
+    try {
+      console.log('Oráculo: Tentando Gemini TTS...');
+      const response = await ai.models.generateContent({
+        model: "gemini-2.0-flash-exp-tts",
+        contents: [{ parts: [{ text }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: voice },
+            },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        console.log('Oráculo: Áudio gerado pelo Gemini TTS');
+        const binaryString = atob(base64Audio);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const wavHeader = createWavHeader(len, 24000);
+        const wavBlob = new Blob([wavHeader, bytes], { type: 'audio/wav' });
+        return URL.createObjectURL(wavBlob);
+      }
+    } catch (geminiError) {
+      console.error('Oráculo: Erro no Gemini TTS:', geminiError);
     }
   }
-  
-  return null;
+
+  const googleCloudAudio = await generateAudioWithGoogleCloud(text, voice);
+  if (googleCloudAudio) {
+    console.log('Oráculo: Áudio gerado pelo Google Cloud TTS');
+    return googleCloudAudio;
+  }
+
+  const voiceRSSAudio = await generateAudioWithVoiceRSS(text, voice);
+  if (voiceRSSAudio) {
+    console.log('Oráculo: Áudio gerado pelo VoiceRSS');
+    return voiceRSSAudio;
+  }
+
+  console.log('Oráculo: Usando API nativa do browser (Speech Synthesis)');
+  return `BROWSER_SPEECH:${voice}:${encodeURIComponent(text)}`;
 }
 
 function createWavHeader(dataLength: number, sampleRate: number = 24000) {
