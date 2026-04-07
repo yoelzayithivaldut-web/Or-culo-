@@ -26,7 +26,11 @@ import {
   FileText,
   UserCircle,
   PenTool,
-  ArrowRight
+  ArrowRight,
+  FileCheck,
+  ClipboardCheck,
+  BookOpen,
+  AlertTriangle
 } from 'lucide-react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
@@ -47,6 +51,12 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
+import { 
+  validateKdpContent, 
+  generateKdpPdf, 
+  generateKdpComplianceReport,
+  KDP_STANDARDS
+} from '@/services/kdpFormat';
 
 export default function Editor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -75,6 +85,15 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
   const [showIllustrationModal, setShowIllustrationModal] = useState(false);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const [lastSavedTime, setLastSavedTime] = useState<Date>(new Date());
+  const [showComplianceModal, setShowComplianceModal] = useState(false);
+  const [complianceReport, setComplianceReport] = useState<string>('');
+  const [kdpValidation, setKdpValidation] = useState<any>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [selectedPageSize, setSelectedPageSize] = useState<'6x9' | '5x8' | '5.5x8.5'>('6x9');
+  const [dedication, setDedication] = useState('');
+  const [includeDedication, setIncludeDedication] = useState(false);
+  const [includeCopyright, setIncludeCopyright] = useState(true);
+  const [includeToc, setIncludeToc] = useState(true);
 
   useEffect(() => {
     const fetchBook = async () => {
@@ -463,144 +482,83 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
     toast.success('Manuscrito profissional exportado com sucesso!');
   };
 
-  const handleDownloadKdpPdf = () => {
-    const pageWidthMm = 152.4;
-    const pageHeightMm = 228.6;
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: [pageWidthMm, pageHeightMm]
-    });
+  const handleValidateKdp = async () => {
+    if (!content || content.trim().length === 0) {
+      toast.error('Nenhum conteúdo para validar.');
+      return;
+    }
 
-    const title = book?.title || 'Obra Sem Título';
-    const author = book?.author || 'Autor Desconhecido';
-    
-    const marginInner = 22;
-    const marginOuter = 18;
-    const marginTop = 20;
-    const marginBottom = 20;
-    const lineHeight = 6;
-    const fontSizeBody = 11;
-    const fontSizeChapter = 16;
-    const fontSizeSubChapter = 14;
-    
-    const getMargins = (pageNum: number) => {
-      return {
-        left: pageNum % 2 === 0 ? marginInner : marginOuter,
-        right: pageNum % 2 === 0 ? marginOuter : marginInner
-      };
-    };
-
-    const isChapterTitle = (line: string): 'chapter' | 'subchapter' | 'none' => {
-      const trimmed = line.trim();
-      if (/^#{1,3}\s/.test(trimmed)) return 'chapter';
-      if (/^(CAP[ií]TULO|Chapter)\s*\.?\s*[IVXLC0-9]+/i.test(trimmed)) return 'chapter';
-      if (/^[IVXLC]+[.\s]/.test(trimmed) && trimmed.length < 30) return 'chapter';
-      if (/^\d+[.\)]\s/.test(trimmed) && trimmed.length < 40) return 'subchapter';
-      return 'none';
-    };
-
-    const parseContent = (text: string) => {
-      const lines = text.split('\n');
-      const parsed: { type: string; text: string; }[] = [];
-      
-      lines.forEach(line => {
-        const chapterType = isChapterTitle(line);
-        if (chapterType === 'chapter') {
-          parsed.push({ type: 'chapter', text: line.replace(/^#+\s*/, '').trim() });
-        } else if (chapterType === 'subchapter') {
-          parsed.push({ type: 'subchapter', text: line.trim() });
-        } else if (line.trim()) {
-          parsed.push({ type: 'body', text: line.trim() });
-        } else {
-          parsed.push({ type: 'blank', text: '' });
-        }
+    setIsValidating(true);
+    try {
+      const validation = validateKdpContent(content, {
+        pageSize: selectedPageSize,
+        coverImage: !!generatedCover,
+        hasFrontMatter: true
       });
       
-      return parsed;
-    };
-
-    const wrapText = (text: string, contentWidth: number, currentFontSize: number): string[] => {
-      doc.setFontSize(currentFontSize);
-      return doc.splitTextToSize(text, contentWidth);
-    };
-
-    let pageNum = 1;
-    const parsedContent = parseContent(content);
-    let currentY = marginTop;
-    const addPage = () => {
-      doc.addPage();
-      pageNum++;
-      currentY = marginTop;
-    };
-
-    doc.setFont('times', 'normal');
-    
-    parsedContent.forEach((item) => {
-      if (item.type === 'blank') {
-        currentY += lineHeight * 0.8;
-        return;
-      }
-
-      const margins = getMargins(pageNum);
-      const contentWidth = pageWidthMm - margins.left - margins.right;
-
-      let fontSize = fontSizeBody;
-      if (item.type === 'chapter') fontSize = fontSizeChapter;
-      if (item.type === 'subchapter') fontSize = fontSizeSubChapter;
-
-      const wrappedLines = wrapText(item.text, contentWidth, fontSize);
-
-      wrappedLines.forEach((line: string) => {
-        if (currentY + lineHeight > pageHeightMm - marginBottom) {
-          doc.setFontSize(9);
-          doc.setFont('times', 'normal');
-          doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
-          addPage();
-        }
-
-        doc.setFontSize(fontSize);
-        if (item.type === 'chapter' && wrappedLines.indexOf(line) === 0) {
-          doc.setFont('times', 'bold');
-          const xPos = pageNum % 2 === 0 ? pageWidthMm - margins.right : margins.left;
-          doc.text(line, xPos, currentY, { align: pageNum % 2 === 0 ? 'right' : 'left' });
-          currentY += lineHeight * 1.5;
-        } else if (item.type === 'subchapter' && wrappedLines.indexOf(line) === 0) {
-          doc.setFont('times', 'bold');
-          doc.text(line, margins.left, currentY);
-          currentY += lineHeight * 1.3;
-        } else {
-          doc.setFont('times', 'normal');
-          doc.text(line, margins.left, currentY);
-          currentY += lineHeight;
-        }
+      setKdpValidation(validation);
+      const report = generateKdpComplianceReport(validation, {
+        title: book?.title || 'Obra Sem Título',
+        author: book?.author || 'Autor Desconhecido'
       });
-
-      if (item.type === 'chapter') {
-        currentY += lineHeight * 1.2;
+      setComplianceReport(report);
+      setShowComplianceModal(true);
+      
+      if (validation.passed) {
+        toast.success('Validação passou! Seu livro está pronto para publicação no KDP.');
       } else {
-        currentY += lineHeight * 0.5;
+        toast.error('Validação falhou. Corrija os erros abaixo.');
       }
-    });
+    } catch (error) {
+      console.error('Validation error:', error);
+      toast.error('Erro ao validar conteúdo.');
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
-    doc.setFontSize(9);
-    doc.setFont('times', 'normal');
-    doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
+  const handleDownloadKdpPdf = () => {
+    if (!content || content.trim().length === 0) {
+      toast.error('Nenhum conteúdo para exportar.');
+      return;
+    }
 
-    doc.addPage();
-    pageNum++;
+    try {
+      const doc = generateKdpPdf(content, {
+        title: book?.title || 'Obra Sem Título',
+        author: book?.author || 'Autor Desconhecido',
+        subtitle: book?.subtitle,
+        pageSize: selectedPageSize,
+        includeDedication: includeDedication ? dedication : undefined,
+        includeCopyright,
+        includeToc,
+        includeBlankPages: true,
+        backCoverText: backCoverText || undefined,
+        publisher: 'Independente'
+      });
+      
+      doc.save(`${(book?.title || 'Obra').replace(/\s+/g, '_')}_KDP_Completo.pdf`);
+      toast.success('PDF padrão KDP exportado com sucesso!');
+    } catch (error) {
+      console.error('KDP PDF export error:', error);
+      toast.error('Erro ao exportar PDF KDP.');
+    }
+  };
+
+  const handleExportComplianceReport = () => {
+    if (!complianceReport) {
+      toast.error('Gere o relatório primeiro.');
+      return;
+    }
     
-    doc.setFontSize(10);
-    doc.setFont('times', 'italic');
-    doc.text(title, pageWidthMm / 2, pageHeightMm / 2 - 10, { align: 'center' });
-    doc.setFont('times', 'normal');
-    doc.text(author, pageWidthMm / 2, pageHeightMm / 2, { align: 'center' });
-    doc.setFontSize(8);
-    doc.setFont('times', 'italic');
-    doc.text('https://kdp.amazon.com', pageWidthMm / 2, pageHeightMm - 15, { align: 'center' });
-
-    doc.save(`${title.replace(/\s+/g, '_')}_KDP_6x9.pdf`);
-    toast.success('PDF formatado para KDP (6" x 9") exportado com sucesso!');
+    const blob = new Blob([complianceReport], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(book?.title || 'Obra').replace(/\s+/g, '_')}_Relatorio_KDP.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Relatório baixado!');
   };
 
   if (!book && id) return null;
@@ -885,6 +843,19 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
                   <FileDown className="w-6 h-6 text-green-400 mb-2" />
                   <h4 className="text-green-400 font-bold">Exportar para KDP (PDF)</h4>
                   <p className="text-gray-400 text-xs">Formato 6&quot; x 9&quot; com margens KDP.</p>
+                </button>
+                <button 
+                  onClick={handleValidateKdp}
+                  disabled={isValidating || !content}
+                  className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-left hover:border-blue-500 hover:bg-blue-500/20 transition-all group disabled:opacity-50"
+                >
+                  {isValidating ? (
+                    <Loader2 className="w-6 h-6 text-blue-400 mb-2 animate-spin" />
+                  ) : (
+                    <ClipboardCheck className="w-6 h-6 text-blue-400 mb-2" />
+                  )}
+                  <h4 className="text-blue-400 font-bold">Validar Conformidade KDP</h4>
+                  <p className="text-gray-400 text-xs">Verifica se está pronto para publicação.</p>
                 </button>
               </div>
 
@@ -1216,6 +1187,129 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
                 >
                   Baixar Imagem
                 </a>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showComplianceModal && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowComplianceModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-[#0A0A0A] border border-[#D4AF37]/20 p-8 rounded-3xl w-full max-w-2xl relative z-10 max-h-[80vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  {kdpValidation?.passed ? (
+                    <div className="w-12 h-12 bg-green-500/20 rounded-2xl flex items-center justify-center">
+                      <CheckCircle2 className="text-green-400 w-6 h-6" />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 bg-red-500/20 rounded-2xl flex items-center justify-center">
+                      <AlertTriangle className="text-red-400 w-6 h-6" />
+                    </div>
+                  )}
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Relatório de Conformidade KDP</h2>
+                    <p className="text-gray-400 text-sm">
+                      {kdpValidation?.passed 
+                        ? 'Seu livro está pronto para publicação!' 
+                        : 'Alguns problemas precisam ser corrigidos.'}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowComplianceModal(false)}
+                  className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {kdpValidation && (
+                <>
+                  <div className="grid grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white/5 p-4 rounded-2xl text-center">
+                      <div className="text-2xl font-bold text-[#D4AF37]">{kdpValidation.metrics.totalPages}</div>
+                      <div className="text-xs text-gray-500">Páginas</div>
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-2xl text-center">
+                      <div className="text-2xl font-bold text-[#D4AF37]">{kdpValidation.metrics.wordCount}</div>
+                      <div className="text-xs text-gray-500">Palavras</div>
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-2xl text-center">
+                      <div className="text-2xl font-bold text-[#D4AF37]">{kdpValidation.metrics.chapterCount}</div>
+                      <div className="text-xs text-gray-500">Capítulos</div>
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-2xl text-center">
+                      <div className="text-2xl font-bold text-[#D4AF37]">
+                        {kdpValidation.metrics.hasTableOfContents ? '✅' : '❌'}
+                      </div>
+                      <div className="text-xs text-gray-500">Sumário</div>
+                    </div>
+                  </div>
+
+                  {kdpValidation.issues.length > 0 && (
+                    <div className="mb-6">
+                      <h3 className="text-red-400 font-bold mb-3 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        Problemas ({kdpValidation.issues.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {kdpValidation.issues.map((issue: any, idx: number) => (
+                          <div key={idx} className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
+                            <div className="text-red-400 text-sm font-bold">{issue.category}</div>
+                            <div className="text-gray-400 text-xs">{issue.message}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {kdpValidation.warnings.length > 0 && (
+                    <div className="mb-6">
+                      <h3 className="text-yellow-400 font-bold mb-3 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        Recomendações ({kdpValidation.warnings.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {kdpValidation.warnings.map((warning: any, idx: number) => (
+                          <div key={idx} className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-xl">
+                            <div className="text-yellow-400 text-sm font-bold">{warning.category}</div>
+                            <div className="text-gray-400 text-xs">{warning.message}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowComplianceModal(false)}
+                  className="flex-1 py-4 text-gray-400 hover:text-white font-bold transition-all"
+                >
+                  Fechar
+                </button>
+                <button
+                  onClick={handleExportComplianceReport}
+                  className="flex-1 bg-[#D4AF37] text-black py-4 rounded-2xl font-bold hover:bg-[#B8962E] transition-all flex items-center justify-center gap-2"
+                >
+                  <FileCheck className="w-5 h-5" />
+                  Baixar Relatório
+                </button>
               </div>
             </motion.div>
           </div>

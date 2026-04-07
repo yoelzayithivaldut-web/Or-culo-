@@ -37,29 +37,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const onboardingRef = React.useRef<boolean | null>(null);
   const { isAdminBypass, enableBypass, disableBypass, checkIsAdmin } = useAdminBypass();
 
-  const setBypass = (value: boolean) => {
-    if (value) {
-      enableBypass();
-      refreshAuth();
-    } else {
-      disableBypass();
-    }
-  };
-
-  // Keep refs in sync with state for use in handleAuthStateChange
-  React.useEffect(() => {
-    loadingRef.current = loading;
-  }, [loading]);
-
-  React.useEffect(() => {
-    onboardingRef.current = onboardingCompleted;
-  }, [onboardingCompleted]);
-
-  const refreshAuth = async () => {
+  const refreshAuth = useCallback(async () => {
     setLoading(true);
     console.log('Oráculo: Manual refresh started');
     
-    // Clear cache to ensure we get the latest profile
     supabaseService.clearProfileCache();
     
     const bypass = isAdminBypass;
@@ -102,42 +83,70 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       let currentUser: Profile | null = null;
       
       if (session?.user) {
-        const supabaseUser = session.user;
-        const profile = await supabaseService.getProfile(supabaseUser.id);
-        const isAdmin = checkIsAdmin(supabaseUser.email);
-        
-        currentUser = {
-          id: supabaseUser.id,
-          email: supabaseUser.email || '',
-          display_name: profile?.display_name || supabaseUser.user_metadata?.full_name || null,
-          onboarding_completed: isAdmin ? true : (profile?.onboarding_completed ?? supabaseUser.user_metadata?.onboarding_completed ?? false),
-          address: profile?.address || null,
-          phone: profile?.phone || null,
-          education_level: profile?.education_level || null,
-          main_genre: profile?.main_genre || null,
-          writing_goal: profile?.writing_goal || null,
-          plan: profile?.plan || (isAdmin ? 'premium' : 'free'),
-          role: profile?.role || (isAdmin ? 'admin' : 'user'),
-          updated_at: profile?.updated_at || new Date().toISOString(),
-          created_at: profile?.created_at || new Date().toISOString(),
-          user_metadata: supabaseUser.user_metadata
-        };
-        
-        setOnboardingCompleted(isAdmin ? true : (profile?.onboarding_completed ?? supabaseUser.user_metadata?.onboarding_completed ?? false));
-        setRole(profile?.role || (isAdmin ? 'admin' : 'user'));
-        setPlan(profile?.plan || (isAdmin ? 'premium' : 'free'));
+        const profile = await supabaseService.getProfile(session.user.id);
+        if (profile) {
+          const isAdmin = checkIsAdmin(profile.email);
+          currentUser = {
+            ...profile,
+            id: session.user.id,
+            email: profile.email || session.user.email || '',
+          };
+          setOnboardingCompleted(isAdmin ? true : (profile.onboarding_completed ?? false));
+          setRole(profile.role || (isAdmin ? 'admin' : 'user'));
+          setPlan(profile.plan || (isAdmin ? 'premium' : 'free'));
+        } else {
+          const isAdmin = checkIsAdmin(session.user.email);
+          const isCompleted = isAdmin ? true : (session.user.user_metadata?.onboarding_completed ?? false);
+          currentUser = {
+            id: session.user.id,
+            email: session.user.email || '',
+            display_name: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'Usuário',
+            onboarding_completed: isCompleted,
+            role: isAdmin ? 'admin' : 'user',
+            plan: isAdmin ? 'premium' : 'free',
+            address: null,
+            phone: null,
+            education_level: null,
+            main_genre: null,
+            writing_goal: null,
+            updated_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          };
+          setOnboardingCompleted(isCompleted);
+          setRole(isAdmin ? 'admin' : 'user');
+          setPlan(isAdmin ? 'premium' : 'free');
+        }
       } else {
         setOnboardingCompleted(false);
         setRole('user');
         setPlan('free');
       }
+      
       setUser(currentUser);
-    } catch (error) {
-      console.error('Oráculo: Auth refresh error:', error);
-    } finally {
+      setLoading(false);
+    } catch (err) {
+      console.error('Oráculo: Refresh auth error:', err);
       setLoading(false);
     }
-  };
+  }, [isAdminBypass, supabaseService, checkIsAdmin]);
+
+  const setBypass = useCallback((value: boolean) => {
+    if (value) {
+      enableBypass();
+      refreshAuth();
+    } else {
+      disableBypass();
+    }
+  }, [enableBypass, disableBypass, refreshAuth]);
+
+  // Keep refs in sync with state for use in handleAuthStateChange
+  React.useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  React.useEffect(() => {
+    onboardingRef.current = onboardingCompleted;
+  }, [onboardingCompleted]);
 
   useEffect(() => {
     let isMounted = true;
@@ -266,7 +275,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [checkIsAdmin, isAdminBypass, setBypass]);
 
   useEffect(() => {
     if (loading || onboardingCompleted === null) return;
