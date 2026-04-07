@@ -10,15 +10,15 @@ const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const FALLBACK_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tbGhrdGt4ZHNqb21qb2N5empoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MDUyMzAsImV4cCI6MjA5MDQ4MTIzMH0.c1T619iv1uWuqQ6Eh3S8TdDUKpFg_lRQ5sr7Pk55GwQ';
 
 const getSupabaseConfig = () => {
-  // Always use environment variables if available, otherwise fallback to hardcoded values
-  const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-  const envPublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+  // Get environment variables with fallbacks
+  let envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  let envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  let envPublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   
-  // Use environment variables or fall back to hardcoded credentials
-  const url = envUrl || FALLBACK_URL;
-  const key = envKey || FALLBACK_KEY;
-  const publishableKey = envPublishableKey || FALLBACK_PUBLISHABLE_KEY;
+  // Use hardcoded fallbacks if env vars are missing or empty
+  const url = (envUrl && envUrl.trim() !== '') ? envUrl : FALLBACK_URL;
+  const key = (envKey && envKey.trim() !== '') ? envKey : FALLBACK_KEY;
+  const publishableKey = (envPublishableKey && envPublishableKey.trim() !== '') ? envPublishableKey : FALLBACK_PUBLISHABLE_KEY;
 
   return { url, key, publishableKey };
 };
