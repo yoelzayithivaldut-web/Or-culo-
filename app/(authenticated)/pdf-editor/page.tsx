@@ -24,7 +24,12 @@ import {
   AlignLeft,
   Type,
   FileCheck,
-  ArrowLeft
+  ArrowLeft,
+  Save,
+  BookPlus,
+  Edit3,
+  User,
+  FileSignature
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -33,6 +38,7 @@ import {
   humanizeText,
   translateText
 } from '@/services/gemini';
+import { supabaseService } from '@/services/supabaseService';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
@@ -82,6 +88,19 @@ export default function PdfEditorPage() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiMenu, setShowAiMenu] = useState(false);
   const [mode, setMode] = useState<'edit' | 'chat'>('edit');
+  const [showMetadataModal, setShowMetadataModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentBookId, setCurrentBookId] = useState<string | null>(null);
+  
+  const [bookMetadata, setBookMetadata] = useState({
+    title: '',
+    author: user?.display_name || user?.email?.split('@')[0] || 'Autor Desconhecido',
+    genre: 'Ficção',
+    language: 'Português (Brasil)',
+    synopsis: '',
+    subtitle: ''
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -273,9 +292,245 @@ export default function PdfEditorPage() {
     setEditedText('');
     setFileName('');
     setMessages([]);
+    setCurrentBookId(null);
+    setBookMetadata({
+      title: '',
+      author: user?.display_name || user?.email?.split('@')[0] || 'Autor Desconhecido',
+      genre: 'Ficção',
+      language: 'Português (Brasil)',
+      synopsis: '',
+      subtitle: ''
+    });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const handleSaveToBooks = async () => {
+    if (!editedText.trim()) {
+      toast.error('Nenhum texto para salvar.');
+      return;
+    }
+
+    if (!user) {
+      toast.error('Você precisa estar logado para salvar.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const bookData = {
+        title: bookMetadata.title || fileName.replace('.pdf', '') || 'Livro Sem Título',
+        content: editedText,
+        author: bookMetadata.author,
+        genre: bookMetadata.genre,
+        language: bookMetadata.language === 'Português (Brasil)' ? 'pt-BR' : 
+                 bookMetadata.language === 'English' ? 'en' : 'es',
+        synopsis: bookMetadata.synopsis,
+        subtitle: bookMetadata.subtitle,
+        user_id: user.id,
+        status: 'editing',
+        updated_at: new Date().toISOString()
+      };
+
+      if (currentBookId) {
+        await supabaseService.updateDocument('books', currentBookId, bookData);
+        toast.success('Livro atualizado com sucesso!');
+      } else {
+        const newId = await supabaseService.addDocument('books', {
+          ...bookData,
+          created_at: new Date().toISOString()
+        });
+        setCurrentBookId(newId);
+        toast.success('Livro salvo com sucesso!');
+      }
+    } catch (error) {
+      console.error('Error saving book:', error);
+      toast.error('Erro ao salvar o livro.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreateNewBook = () => {
+    setPdfText('');
+    setEditedText('');
+    setFileName('');
+    setMessages([]);
+    setCurrentBookId(null);
+    setBookMetadata({
+      title: '',
+      author: user?.display_name || user?.email?.split('@')[0] || 'Autor Desconhecido',
+      genre: 'Ficção',
+      language: 'Português (Brasil)',
+      synopsis: '',
+      subtitle: ''
+    });
+    setShowMetadataModal(true);
+  };
+
+  const handleLoadFromBooks = async (bookId: string) => {
+    setIsLoading(true);
+    try {
+      const book: any = await supabaseService.getDocument('books', bookId);
+      if (book) {
+        setCurrentBookId(book.id);
+        setEditedText(book.content || '');
+        setPdfText(book.content || '');
+        setFileName(book.title || 'Livro Carregado');
+        setBookMetadata({
+          title: book.title || '',
+          author: book.author || '',
+          genre: book.genre || 'Ficção',
+          language: book.language === 'pt-BR' ? 'Português (Brasil)' : 
+                   book.language === 'en' ? 'English' : 'Español',
+          synopsis: book.synopsis || '',
+          subtitle: book.subtitle || ''
+        });
+        toast.success(`Livro "${book.title}" carregado!`);
+      }
+    } catch (error) {
+      console.error('Error loading book:', error);
+      toast.error('Erro ao carregar o livro.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDownloadKdpPdf = () => {
+    const pageWidthMm = 152.4;
+    const pageHeightMm = 228.6;
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [pageWidthMm, pageHeightMm]
+    });
+
+    const title = bookMetadata.title || fileName.replace('.pdf', '') || 'Obra Sem Título';
+    const author = bookMetadata.author || 'Autor Desconhecido';
+    
+    const marginInner = 12.7;
+    const marginOuter = 6.35;
+    const marginTop = 6.35;
+    const marginBottom = 6.35;
+    const lineHeight = 6;
+    const fontSizeBody = 11;
+    const fontSizeChapter = 16;
+    const fontSizeSubChapter = 14;
+    
+    const getMargins = (pageNum: number) => ({
+      left: pageNum % 2 === 0 ? marginInner : marginOuter,
+      right: pageNum % 2 === 0 ? marginOuter : marginInner
+    });
+
+    const isChapterTitle = (line: string): 'chapter' | 'subchapter' | 'none' => {
+      const trimmed = line.trim();
+      if (/^#{1,3}\s/.test(trimmed)) return 'chapter';
+      if (/^(CAP[ií]TULO|Chapter)\s*\.?\s*[IVXLC0-9]+/i.test(trimmed)) return 'chapter';
+      if (/^[IVXLC]+[.\s]/.test(trimmed) && trimmed.length < 30) return 'chapter';
+      if (/^\d+[.\)]\s/.test(trimmed) && trimmed.length < 40) return 'subchapter';
+      return 'none';
+    };
+
+    const parseContent = (text: string) => {
+      const lines = text.split('\n');
+      const parsed: { type: string; text: string }[] = [];
+      
+      lines.forEach(line => {
+        const chapterType = isChapterTitle(line);
+        if (chapterType === 'chapter') {
+          parsed.push({ type: 'chapter', text: line.replace(/^#+\s*/, '').trim() });
+        } else if (chapterType === 'subchapter') {
+          parsed.push({ type: 'subchapter', text: line.trim() });
+        } else if (line.trim()) {
+          parsed.push({ type: 'body', text: line.trim() });
+        } else {
+          parsed.push({ type: 'blank', text: '' });
+        }
+      });
+      
+      return parsed;
+    };
+
+    const wrapText = (text: string, contentWidth: number, currentFontSize: number): string[] => {
+      doc.setFontSize(currentFontSize);
+      return doc.splitTextToSize(text, contentWidth);
+    };
+
+    let pageNum = 1;
+    const parsedContent = parseContent(editedText);
+    let currentY = marginTop;
+    
+    const addPage = () => {
+      doc.addPage();
+      pageNum++;
+      currentY = marginTop;
+    };
+
+    doc.setFont('times', 'normal');
+    
+    doc.setFontSize(24);
+    doc.setFont('times', 'bold');
+    doc.text(title.toUpperCase(), pageWidthMm / 2, pageHeightMm / 2 - 10, { align: 'center' });
+    doc.setFontSize(14);
+    doc.setFont('times', 'normal');
+    doc.text(`por ${author}`, pageWidthMm / 2, pageHeightMm / 2 + 10, { align: 'center' });
+    
+    doc.setFontSize(9);
+    doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
+    addPage();
+    
+    parsedContent.forEach((item) => {
+      if (item.type === 'blank') {
+        currentY += lineHeight * 0.8;
+        return;
+      }
+      
+      const margins = getMargins(pageNum);
+      const contentWidth = pageWidthMm - margins.left - margins.right;
+      
+      let fontSize = fontSizeBody;
+      if (item.type === 'chapter') fontSize = fontSizeChapter;
+      if (item.type === 'subchapter') fontSize = fontSizeSubChapter;
+      
+      const wrappedLines = wrapText(item.text, contentWidth, fontSize);
+      
+      wrappedLines.forEach((line: string) => {
+        if (currentY + lineHeight > pageHeightMm - marginBottom) {
+          doc.setFontSize(9);
+          doc.setFont('times', 'normal');
+          doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
+          addPage();
+        }
+
+        doc.setFontSize(fontSize);
+        if (item.type === 'chapter' && wrappedLines.indexOf(line) === 0) {
+          doc.setFont('times', 'bold');
+          currentY += lineHeight * 1.5;
+        } else if (item.type === 'subchapter' && wrappedLines.indexOf(line) === 0) {
+          doc.setFont('times', 'bold');
+          currentY += lineHeight * 1.3;
+        } else {
+          doc.setFont('times', 'normal');
+          currentY += lineHeight;
+        }
+        
+        doc.text(line, margins.left, currentY);
+      });
+
+      if (item.type === 'chapter') {
+        currentY += lineHeight * 1.2;
+      } else {
+        currentY += lineHeight * 0.5;
+      }
+    });
+
+    doc.setFontSize(9);
+    doc.setFont('times', 'normal');
+    doc.text(`${pageNum}`, pageWidthMm / 2, pageHeightMm - 10, { align: 'center' });
+
+    doc.save(`${title.replace(/\s+/g, '_')}_KDP_6x9.pdf`);
+    toast.success('PDF formatado para KDP exportado com sucesso!');
   };
 
   return (
@@ -302,8 +557,30 @@ export default function PdfEditorPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleCreateNewBook}
+            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold text-sm transition-all border border-white/10"
+          >
+            <BookPlus className="w-4 h-4" />
+            Novo Livro
+          </button>
           {pdfText && (
             <>
+              <button
+                onClick={handleSaveToBooks}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-black rounded-xl font-bold text-sm hover:bg-[#B8962E] transition-all disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSaving ? 'Salvando...' : 'Salvar Livro'}
+              </button>
+              <button
+                onClick={() => setShowMetadataModal(true)}
+                className="p-3 hover:bg-white/5 rounded-xl text-gray-400 hover:text-white transition-all"
+                title="Editar Metadados"
+              >
+                <Edit3 className="w-5 h-5" />
+              </button>
               <button
                 onClick={handleNewPdf}
                 className="p-3 hover:bg-white/5 rounded-xl text-gray-400 hover:text-red-500 transition-all"
@@ -317,6 +594,13 @@ export default function PdfEditorPage() {
                 title="Baixar PDF"
               >
                 <FileDown className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={handleDownloadKdpPdf}
+                className="p-3 hover:bg-white/5 rounded-xl text-green-400 hover:text-green-300 transition-all"
+                title="Exportar KDP (6x9)"
+              >
+                <BookOpen className="w-5 h-5" />
               </button>
               <button 
                 onClick={() => setMode(mode === 'edit' ? 'chat' : 'edit')}
@@ -337,14 +621,35 @@ export default function PdfEditorPage() {
 
       {!pdfText ? (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center max-w-xl">
-            <div className="w-24 h-24 bg-[#D4AF37]/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
-              <FileText className="w-12 h-12 text-[#D4AF37]" />
+          <div className="text-center max-w-2xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+              <button
+                onClick={handleCreateNewBook}
+                className="p-8 bg-[#D4AF37]/10 border border-[#D4AF37]/30 rounded-3xl text-left hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition-all group"
+              >
+                <div className="w-14 h-14 bg-[#D4AF37]/20 rounded-2xl flex items-center justify-center mb-4">
+                  <BookPlus className="w-7 h-7 text-[#D4AF37]" />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-2 group-hover:text-[#D4AF37]">Criar Novo Livro</h3>
+                <p className="text-gray-400 text-sm">
+                  Comece do zero com assistência de IA e formatação KDP
+                </p>
+              </button>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="p-8 bg-white/5 border border-white/10 rounded-3xl text-left hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition-all group disabled:opacity-50"
+              >
+                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-[#D4AF37]/20">
+                  <Upload className="w-7 h-7 text-gray-400 group-hover:text-[#D4AF37]" />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-2 group-hover:text-[#D4AF37]">Importar PDF</h3>
+                <p className="text-gray-400 text-sm">
+                  Carregue um PDF existente para editar e melhorar
+                </p>
+              </button>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-4">Carregue seu PDF</h2>
-            <p className="text-gray-400 mb-8">
-              Envie um arquivo PDF para extrair o texto e começar a editar ou conversar com o conteúdo usando inteligência artificial.
-            </p>
             
             <input
               ref={fileInputRef}
@@ -354,26 +659,8 @@ export default function PdfEditorPage() {
               className="hidden"
             />
             
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
-              className="flex items-center gap-3 bg-[#D4AF37] text-black px-8 py-4 rounded-2xl font-bold hover:bg-[#B8962E] transition-all shadow-[0_10px_20px_rgba(212,175,55,0.2)] mx-auto disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Processando...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-5 h-5" />
-                  Selecionar PDF
-                </>
-              )}
-            </button>
-            
-            <p className="text-gray-500 text-xs mt-4">
-              Arquivos até 20MB são aceitos
+            <p className="text-gray-500 text-xs">
+              ou arraste um arquivo PDF para esta área •Máx. 20MB
             </p>
           </div>
         </div>
@@ -618,6 +905,158 @@ export default function PdfEditorPage() {
                   <span className="font-bold">Processando com IA...</span>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showMetadataModal && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMetadataModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-[#0A0A0A] border border-[#D4AF37]/20 p-8 rounded-3xl w-full max-w-lg relative z-10"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#D4AF37] rounded-xl flex items-center justify-center">
+                    <FileSignature className="text-black w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Metadados do Livro</h2>
+                    <p className="text-gray-400 text-xs">Configure as informações do seu livro</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowMetadataModal(false)}
+                  className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
+                    <FileSignature className="w-4 h-4 inline mr-1" /> Título do Livro
+                  </label>
+                  <input
+                    type="text"
+                    value={bookMetadata.title}
+                    onChange={(e) => setBookMetadata({ ...bookMetadata, title: e.target.value })}
+                    placeholder="Digite o título do seu livro..."
+                    className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37]/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
+                    <User className="w-4 h-4 inline mr-1" /> Autor
+                  </label>
+                  <input
+                    type="text"
+                    value={bookMetadata.author}
+                    onChange={(e) => setBookMetadata({ ...bookMetadata, author: e.target.value })}
+                    placeholder="Nome do autor..."
+                    className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37]/50"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
+                      Gênero
+                    </label>
+                    <select
+                      value={bookMetadata.genre}
+                      onChange={(e) => setBookMetadata({ ...bookMetadata, genre: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37]/50"
+                    >
+                      <option value="Ficção" className="bg-[#0A0A0A]">Ficção</option>
+                      <option value="Não Ficção" className="bg-[#0A0A0A]">Não Ficção</option>
+                      <option value="Romance" className="bg-[#0A0A0A]">Romance</option>
+                      <option value="Aventura" className="bg-[#0A0A0A]">Aventura</option>
+                      <option value="Ficção Científica" className="bg-[#0A0A0A]">Ficção Científica</option>
+                      <option value="Fantasia" className="bg-[#0A0A0A]">Fantasia</option>
+                      <option value="Mistério" className="bg-[#0A0A0A]">Mistério</option>
+                      <option value="Suspense" className="bg-[#0A0A0A]">Suspense</option>
+                      <option value="Biografia" className="bg-[#0A0A0A]">Biografia</option>
+                      <option value="Autoajuda" className="bg-[#0A0A0A]">Autoajuda</option>
+                      <option value="Infantil" className="bg-[#0A0A0A]">Infantil</option>
+                      <option value="Poesia" className="bg-[#0A0A0A]">Poesia</option>
+                      <option value="Outro" className="bg-[#0A0A0A]">Outro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
+                      Idioma
+                    </label>
+                    <select
+                      value={bookMetadata.language}
+                      onChange={(e) => setBookMetadata({ ...bookMetadata, language: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37]/50"
+                    >
+                      <option value="Português (Brasil)" className="bg-[#0A0A0A]">Português (Brasil)</option>
+                      <option value="English" className="bg-[#0A0A0A]">English</option>
+                      <option value="Español" className="bg-[#0A0A0A]">Español</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
+                    Subtítulo (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={bookMetadata.subtitle}
+                    onChange={(e) => setBookMetadata({ ...bookMetadata, subtitle: e.target.value })}
+                    placeholder="Um subtítulo descritivo..."
+                    className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37]/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-widest font-bold block mb-2">
+                    Sinopse (Opcional)
+                  </label>
+                  <textarea
+                    value={bookMetadata.synopsis}
+                    onChange={(e) => setBookMetadata({ ...bookMetadata, synopsis: e.target.value })}
+                    placeholder="Uma breve descrição do livro..."
+                    rows={3}
+                    className="w-full bg-white/5 border border-white/10 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37]/50 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-8">
+                <button
+                  onClick={() => setShowMetadataModal(false)}
+                  className="flex-1 py-3 text-gray-400 hover:text-white font-bold transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMetadataModal(false);
+                    toast.success('Metadados salvos!');
+                  }}
+                  className="flex-1 bg-[#D4AF37] text-black py-3 rounded-xl font-bold hover:bg-[#B8962E] transition-all"
+                >
+                  Salvar Metadados
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
