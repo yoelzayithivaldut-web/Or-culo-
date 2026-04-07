@@ -128,7 +128,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Oráculo: Refresh auth error:', err);
       setLoading(false);
     }
-  }, [isAdminBypass, supabaseService, checkIsAdmin]);
+  }, [isAdminBypass, checkIsAdmin]);
 
   const setBypass = useCallback((value: boolean) => {
     if (value) {

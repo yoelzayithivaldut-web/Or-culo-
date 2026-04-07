@@ -845,7 +845,7 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
                       <button onClick={handleDownloadKdpPdf} className="p-6 bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-2xl text-center hover:border-green-500 hover:from-green-500/25 hover:to-green-500/10 transition-all group">
                         <div className="w-14 h-14 bg-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-green-500/30 transition-all"><FileDown className="w-7 h-7 text-green-400" /></div>
                         <h4 className="text-green-400 font-bold text-lg">Exportar para KDP (PDF)</h4>
-                        <p className="text-gray-500 text-xs mt-1">PDF 6"x9" margens KDP</p>
+                        <p className="text-gray-500 text-xs mt-1">PDF 6&quot;x9&quot; margens KDP</p>
                       </button>
                       <button onClick={handleValidateKdp} disabled={isValidating || !content} className="p-6 bg-gradient-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/30 rounded-2xl text-center hover:border-blue-500 hover:from-blue-500/25 hover:to-blue-500/10 transition-all group disabled:opacity-50">
                         <div className="w-14 h-14 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-500/30 transition-all">{isValidating ? <Loader2 className="w-7 h-7 text-blue-400 animate-spin" /> : <CheckCircle2 className="w-7 h-7 text-blue-400" />}</div>
