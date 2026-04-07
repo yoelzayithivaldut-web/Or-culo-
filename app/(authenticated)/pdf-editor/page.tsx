@@ -21,7 +21,6 @@ import {
   History,
   Settings,
   BookOpen,
-  AlignLeft,
   Type,
   FileCheck,
   ArrowLeft,
@@ -29,7 +28,25 @@ import {
   BookPlus,
   Edit3,
   User,
-  FileSignature
+  FileSignature,
+  Bold,
+  Italic,
+  Underline,
+  AlignLeft as AlignLeftIcon,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  List,
+  ListOrdered,
+  Heading1,
+  Heading2,
+  Heading3,
+  Minus,
+  ZoomIn,
+  ZoomOut,
+  Palette,
+  TextQuote,
+  Highlighter
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -91,6 +108,12 @@ export default function PdfEditorPage() {
   const [showMetadataModal, setShowMetadataModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentBookId, setCurrentBookId] = useState<string | null>(null);
+  const [editorFontSize, setEditorFontSize] = useState(16);
+  const [editorFontFamily, setEditorFontFamily] = useState('Times New Roman');
+  const [editorLineHeight, setEditorLineHeight] = useState(1.8);
+  const [editorAlign, setEditorAlign] = useState<'left' | 'center' | 'right' | 'justify'>('left');
+  const [showFormattingToolbar, setShowFormattingToolbar] = useState(true);
+  const [selectedTextStyle, setSelectedTextStyle] = useState<string[]>([]);
   
   const [bookMetadata, setBookMetadata] = useState({
     title: '',
@@ -611,7 +634,7 @@ export default function PdfEditorPage() {
                     : "bg-white/5 text-gray-400 hover:text-white"
                 )}
               >
-                {showChat ? <AlignLeft className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
+                {showChat ? <AlignLeftIcon className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
                 {showChat ? 'Modo Edição' : 'Modo Chat'}
               </button>
             </>
@@ -686,13 +709,114 @@ export default function PdfEditorPage() {
                   </button>
                 </div>
               </div>
+
+              {showFormattingToolbar && (
+                <div className="flex items-center gap-1 px-4 py-2 border-b border-white/10 bg-white/[0.02] flex-wrap">
+                  <div className="flex items-center gap-1 pr-3 border-r border-white/10">
+                    <button
+                      onClick={() => setEditorFontSize(Math.max(12, editorFontSize - 2))}
+                      className="p-1.5 hover:bg-white/5 rounded text-gray-400 hover:text-white"
+                      title="Diminuir fonte"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs text-gray-400 min-w-[40px] text-center">{editorFontSize}px</span>
+                    <button
+                      onClick={() => setEditorFontSize(Math.min(32, editorFontSize + 2))}
+                      className="p-1.5 hover:bg-white/5 rounded text-gray-400 hover:text-white"
+                      title="Aumentar fonte"
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1 px-3 border-r border-white/10">
+                    <select
+                      value={editorFontFamily}
+                      onChange={(e) => setEditorFontFamily(e.target.value)}
+                      className="bg-transparent text-gray-400 text-xs py-1 focus:outline-none"
+                    >
+                      <option value="Times New Roman" className="bg-[#0A0A0A]">Times New Roman</option>
+                      <option value="Arial" className="bg-[#0A0A0A]">Arial</option>
+                      <option value="Georgia" className="bg-[#0A0A0A]">Georgia</option>
+                      <option value="Verdana" className="bg-[#0A0A0A]">Verdana</option>
+                      <option value="Courier New" className="bg-[#0A0A0A]">Courier New</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-1 px-2">
+                    <button
+                      onClick={() => setEditorAlign('left')}
+                      className={cn("p-1.5 rounded hover:bg-white/5 transition-all", editorAlign === 'left' ? "text-[#D4AF37]" : "text-gray-400")}
+                      title="Alinhar à esquerda"
+                    >
+                      <AlignLeftIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditorAlign('center')}
+                      className={cn("p-1.5 rounded hover:bg-white/5 transition-all", editorAlign === 'center' ? "text-[#D4AF37]" : "text-gray-400")}
+                      title="Centralizar"
+                    >
+                      <AlignCenter className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditorAlign('right')}
+                      className={cn("p-1.5 rounded hover:bg-white/5 transition-all", editorAlign === 'right' ? "text-[#D4AF37]" : "text-gray-400")}
+                      title="Alinhar à direita"
+                    >
+                      <AlignRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditorAlign('justify')}
+                      className={cn("p-1.5 rounded hover:bg-white/5 transition-all", editorAlign === 'justify' ? "text-[#D4AF37]" : "text-gray-400")}
+                      title="Justificar"
+                    >
+                      <AlignJustify className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1 px-2 border-l border-white/10">
+                    <button
+                      onClick={() => setEditorLineHeight(Math.max(1.2, editorLineHeight - 0.2))}
+                      className="p-1.5 hover:bg-white/5 rounded text-gray-400 hover:text-white text-xs"
+                      title="Diminuir espaçamento"
+                    >
+                      -L
+                    </button>
+                    <span className="text-xs text-gray-400 min-w-[50px] text-center">L: {editorLineHeight.toFixed(1)}</span>
+                    <button
+                      onClick={() => setEditorLineHeight(Math.min(3, editorLineHeight + 0.2))}
+                      className="p-1.5 hover:bg-white/5 rounded text-gray-400 hover:text-white text-xs"
+                      title="Aumentar espaçamento"
+                    >
+                      +L
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setShowFormattingToolbar(false)}
+                    className="ml-auto p-1.5 hover:bg-white/5 rounded text-gray-500 hover:text-white"
+                    title="Ocultar toolbar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               
-              <textarea
-                value={editedText}
-                onChange={(e) => setEditedText(e.target.value)}
-                placeholder="O texto do seu PDF aparecerá aqui..."
-                className="flex-1 w-full bg-transparent text-gray-200 p-6 text-base leading-relaxed focus:outline-none resize-none font-sans"
-              />
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                onBlur={(e) => setEditedText(e.currentTarget.innerText)}
+                style={{
+                  fontSize: `${editorFontSize}px`,
+                  fontFamily: editorFontFamily,
+                  lineHeight: editorLineHeight,
+                  textAlign: editorAlign
+                }}
+                className="flex-1 w-full bg-[#080808] text-gray-200 p-8 focus:outline-none resize-none overflow-y-auto"
+              >
+                {editedText}
+              </div>
             </div>
 
             <div className="flex items-center justify-between text-sm text-gray-500">
@@ -702,6 +826,12 @@ export default function PdfEditorPage() {
                 <span>{editedText.length} caracteres</span>
               </div>
               <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setShowFormattingToolbar(!showFormattingToolbar)}
+                  className={cn("p-2 rounded-lg transition-all", showFormattingToolbar ? "bg-[#D4AF37]/20 text-[#D4AF37]" : "hover:bg-white/5 text-gray-400 hover:text-white")}
+                >
+                  <Palette className="w-4 h-4" />
+                </button>
                 <button 
                   onClick={() => navigator.clipboard.writeText(editedText)}
                   className="p-2 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"
