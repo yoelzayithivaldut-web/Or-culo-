@@ -3,7 +3,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
 
-const useGemini = GEMINI_API_KEY && GEMINI_API_KEY !== 'your-gemini-api-key';
+const useGemini = GEMINI_API_KEY && GEMINI_API_KEY !== 'your-gemini-api-key' && GEMINI_API_KEY.trim() !== '';
 const useHuggingFace = HUGGINGFACE_API_KEY && HUGGINGFACE_API_KEY !== 'your-huggingface-api-key';
 
 let ai = useGemini ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
@@ -290,30 +290,29 @@ export async function generateEbookOutline(theme: string) {
 function mockResponse(prompt: string, context: string): string {
   const lowerPrompt = prompt.toLowerCase();
   if (lowerPrompt.includes('expand') || lowerPrompt.includes('expanda')) {
-    return `${context}\n\n*A narrativa continua enquanto os eventos se desenrolam, revelando camadas mais profundas de significado e emocões que permeiam cada cena, criando uma atmosfera envolvente que captura a atenção do leitor do início ao fim.*`;
+    return `${context}\n\n*A narrativa continua enquanto os eventos se desenrolam, revelando camadas mais profundas de significado e emoções que permeiam cada cena, criando uma atmosfera envolvente que captura a atenção do leitor do início ao fim.*`;
   }
   if (lowerPrompt.includes('improve') || lowerPrompt.includes('melhore')) {
     return context.split('.').map(s => s.trim()).filter(s => s).map(s => s.charAt(0).toUpperCase() + s.slice(1) + '.').join(' ');
   }
   if (lowerPrompt.includes('summarize') || lowerPrompt.includes('resuma')) {
-    return 'Este trecho apresenta uma narrativa envolvente que explora temas de importância significativa, com desenvolvimento de personagens que reflete as complexities da experiência humana.';
+    return 'Este trecho apresenta uma narrativa envolvente que explora temas de importância significativa, com desenvolvimento de personagens que reflete as complexidades da experiência humana.';
   }
   if (lowerPrompt.includes('suggest') || lowerPrompt.includes('sugira')) {
     return 'Baseado no contexto, a narrativa poderia continuar com: um evento inesperado que muda tudo, uma revelação sobre o protagonista, ou uma escolha difícil que definirá o destino do herói.';
   }
-  return 'Texto processado com sucesso pela IA local.';
+  return 'Texto processado pelo modo demonstração. Configure uma API key para resultados completos.';
 }
 
 function mockEditorialReview(text: string, bookTitle: string): string {
-  return `=== EDIÇÃO EDITORIAL COMPLETA ===
+  return `=== EDIÇÃO EDITORIAL COMPLETA - MODO DEMONSTRAÇÃO ===
+
+⚠️ AVISO: Configure a GEMINI_API_KEY para resultados completos com IA real.
 
 ${bookTitle.toUpperCase()}
 
 --- DEDICATÓRIA ---
 Aos leitores que acreditam no poder das histórias.
-
---- AGRADECIMENTOS ---
-A todos que tornaram este projeto possível.
 
 --- ÍNDICE ---
 1. Introdução..............1
@@ -324,20 +323,23 @@ A todos que tornaram este projeto possível.
 
 ${text}
 
---- FIM DO MANUSCRITO ---`;
+--- FIM DO MANUSCRITO ---
+
+Para ativar a IA completa, configure a variável GEMINI_API_KEY no Vercel.`;
 }
 
 function mockManuscript(text: string, bookTitle: string, author: string): string {
   return `══════════════════════════════════════════
 ${bookTitle.toUpperCase()}
 por ${author}
-══════════════════════════════════════════
+
+⚠️ MODO DEMONSTRAÇÃO - Configure GEMINI_API_KEY para IA completa
 
 ${text}
 
-══════════════════════════════════════════
-Fim
-══════════════════════════════════════════`;
+═════════════════════════════════════════
+Fim do Manuscrito
+═════════════════════════════════════════`;
 }
 
 function generatePlaceholderCover(prompt: string): string {
