@@ -621,7 +621,7 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
             className="flex items-center gap-2 bg-[#D4AF37] text-black px-6 py-3 rounded-2xl font-bold hover:bg-[#B8962E] transition-all shadow-[0_10px_20px_rgba(212,175,55,0.2)]"
           >
             <Sparkles className="w-5 h-5" />
-            Editor Inteligente
+            IA Editor
           </button>
           <a 
             href="https://kdp.amazon.com/"
@@ -727,8 +727,8 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
                     <Sparkles className="text-black w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Painel Inteligente Oráculo</h2>
-                    <p className="text-gray-400 text-sm">Assistente editorial profissional</p>
+                    <h2 className="text-2xl font-bold text-white">IA Editor - Assistente Editorial</h2>
+                    <p className="text-gray-400 text-sm">Edite, melhore e otimize seu texto para padrões profissionais e Amazon KDP</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
