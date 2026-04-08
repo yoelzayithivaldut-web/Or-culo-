@@ -389,43 +389,55 @@ export default function Editor({ params }: { params: Promise<{ id: string }> }) 
   };
 
   const handleDownloadPdf = () => {
-    const doc = new jsPDF();
-    const title = book?.title || 'Obra Sem Título';
-    const author = book?.author || 'Autor Desconhecido';
-    
-    doc.setFontSize(24);
-    doc.text(title, 105, 100, { align: 'center' });
-    doc.setFontSize(16);
-    doc.text(author, 105, 120, { align: 'center' });
-    
-    doc.addPage();
-    doc.setFontSize(12);
-    
-    const splitText = doc.splitTextToSize(content, 180);
-    let y = 20;
-    let pageNum = 1;
+    console.log('Download PDF clicked, content length:', content?.length);
+    if (!content || content.trim().length === 0) {
+      toast.error('Nenhum conteúdo para exportar. Escreva algo primeiro!');
+      return;
+    }
 
-    const addPageNumber = (num: number) => {
-      doc.setFontSize(10);
-      doc.text(`Página ${num}`, 105, 285, { align: 'center' });
+    try {
+      const doc = new jsPDF();
+      const title = book?.title || 'Obra Sem Título';
+      const author = book?.author || 'Autor Desconhecido';
+      
+      doc.setFontSize(24);
+      doc.text(title, 105, 100, { align: 'center' });
+      doc.setFontSize(16);
+      doc.text(author, 105, 120, { align: 'center' });
+      
+      doc.addPage();
       doc.setFontSize(12);
-    };
+      
+      const splitText = doc.splitTextToSize(content, 180);
+      let y = 20;
+      let pageNum = 1;
 
-    addPageNumber(pageNum);
-    
-    splitText.forEach((line: string) => {
-      if (y > 275) {
-        doc.addPage();
-        pageNum++;
-        addPageNumber(pageNum);
-        y = 20;
-      }
-      doc.text(line, 15, y);
-      y += 7;
-    });
-    
-    doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
-    toast.success('PDF gerado com sucesso!');
+      const addPageNumber = (num: number) => {
+        doc.setFontSize(10);
+        doc.text(`Página ${num}`, 105, 285, { align: 'center' });
+        doc.setFontSize(12);
+      };
+
+      addPageNumber(pageNum);
+      
+      splitText.forEach((line: string) => {
+        if (y > 275) {
+          doc.addPage();
+          pageNum++;
+          addPageNumber(pageNum);
+          y = 20;
+        }
+        doc.text(line, 15, y);
+        y += 7;
+      });
+      
+      doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
+      toast.success('PDF baixado com sucesso!');
+      console.log('PDF saved successfully');
+    } catch (error) {
+      console.error('PDF download error:', error);
+      toast.error('Erro ao gerar PDF. Tente novamente.');
+    }
   };
 
   const handleDownloadManuscriptPdf = () => {
